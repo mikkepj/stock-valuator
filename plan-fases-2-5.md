@@ -71,19 +71,19 @@
 
 ### 3.1 Entidad y Repositorio ValuationResult
 
-- [ ] Crear entidad JPA `ValuationResultEntity` mapeando tabla `valuation_result` existente; campos `sensitivityMatrix` y `breakdown` como `@JdbcTypeCode(JSON)`
-- [ ] Crear `ValuationResultRepository` con método `findFirstByCompanyTickerOrderByCalculatedAtDesc(String ticker)`
+- [x] Crear entidad JPA `ValuationResultEntity` mapeando tabla `valuation_result` existente; campos `sensitivityMatrix` y `breakdown` como `@JdbcTypeCode(JSON)`
+- [x] Crear `ValuationResultRepository` con método `findFirstByCompanyTickerOrderByCalculatedAtDesc(String ticker)`
 
 ### 3.2 Response DTOs y Mapper
 
-- [ ] Crear record `ValuationResponse`: todos los campos de `ValuationResult` + `companyName`, `sector`, `lastUpdated`
-- [ ] Crear record `WatchlistItemResponse`: `ticker`, `companyName`, `currentPrice`, `intrinsicValue`, `marginOfSafety`, `verdict`
-- [ ] Crear `ValuationMapper` (sin librerías externas): `ValuationResult → ValuationResultEntity`, `ValuationResultEntity → ValuationResponse`
+- [x] Crear record `ValuationResponse`: todos los campos de `ValuationResult` + `companyName`, `sector`, `lastUpdated`
+- [x] Crear record `WatchlistItemResponse`: `ticker`, `companyName`, `currentPrice`, `intrinsicValue`, `marginOfSafety`, `verdict`
+- [x] Crear `ValuationMapper` (sin librerías externas): `ValuationResult → ValuationResultEntity`, `ValuationResultEntity → ValuationResponse`
 
 ### 3.3 Servicio de Valuación
 
-- [ ] **TEST** `ValuationServiceTest` con Mockito — cache hit no llama al engine; `forceCalculate` invalida cache; ticker sin datos lanza `TickerNotFoundException`
-- [ ] Implementar `ValuationService`:
+- [x] **TEST** `ValuationServiceTest` con Mockito — cache hit no llama al engine; `forceCalculate` invalida cache; ticker sin datos lanza `TickerNotFoundException`
+- [x] Implementar `ValuationService`:
   - `getValuation(ticker)` con `@Cacheable("valuations")`
   - `forceCalculate(ticker)` con `@CacheEvict` — ingesta si necesario, corre engine, persiste
   - Método privado `buildCompanyFinancials(ticker)` que lee de `FinancialStatementRepository` y `MarketDataRepository`
@@ -91,25 +91,25 @@
 
 ### 3.4 Endpoints de Valuación
 
-- [ ] **TEST** `ValuationControllerTest` con MockMvc — GET 200 con body; POST 200 con cálculo fresco; ticker inexistente → 404
-- [ ] Implementar `ValuationController`:
+- [x] **TEST** `ValuationControllerTest` con MockMvc — GET 200 con body; POST 200 con cálculo fresco; ticker inexistente → 404
+- [x] Implementar `ValuationController`:
   - `GET /api/v1/valuations/{ticker}` → `ValuationResponse` cacheado
   - `POST /api/v1/valuations/{ticker}/calculate` → fuerza recálculo
 
 ### 3.5 Endpoints Watchlist
 
-- [ ] Crear entidad JPA `WatchlistEntry` mapeando tabla `watchlist` existente
-- [ ] Crear `WatchlistRepository` con `findByCompanyTicker(String ticker)`
-- [ ] **TEST** `WatchlistControllerTest` con MockMvc — GET lista, POST agrega, DELETE 404 si no existe
-- [ ] Implementar `WatchlistController`:
+- [x] Crear entidad JPA `WatchlistEntry` mapeando tabla `watchlist` existente
+- [x] Crear `WatchlistRepository` con `findByCompanyTicker(String ticker)`
+- [x] **TEST** `WatchlistControllerTest` con MockMvc — GET lista, POST agrega, DELETE 404 si no existe
+- [x] Implementar `WatchlistController`:
   - `GET /api/v1/watchlist` → `List<WatchlistItemResponse>`
   - `POST /api/v1/watchlist/{ticker}` → agrega y retorna 201
   - `DELETE /api/v1/watchlist/{ticker}` → 204 o 404
 
 ### 3.6 Exception Handling y Caché
 
-- [ ] Implementar `GlobalExceptionHandler` (`@ControllerAdvice`): `TickerNotFoundException → 404`, `IngestionException → 422`, `Exception → 500`; body uniforme `ErrorResponse` record con `timestamp`, `status`, `error`, `path`
-- [ ] Crear `CacheConfig`: cache `valuations` con TTL 24h, `watchlist` con TTL 5min
+- [x] Implementar `GlobalExceptionHandler` (`@ControllerAdvice`): `TickerNotFoundException → 404`, `IngestionException → 422`, `Exception → 500`; body uniforme `ErrorResponse` record con `timestamp`, `status`, `error`, `path`
+- [x] Crear `CacheConfig`: cache `valuations` con TTL 24h, `watchlist` con TTL 5min
 
 ---
 
