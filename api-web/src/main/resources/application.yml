@@ -57,6 +57,11 @@ fmp:
 stockvaluator:
   scheduling:
     refresh-cron: "0 0 6 * * SAT"  # Every Saturday at 6 AM
+  dcf:
+    risk-free-rate: 0.045
+    market-risk-premium: 0.055
+    terminal-growth-rate: 0.025
+    projection-years: 10
 
 # -----------------------------------------------------------
 # Actuator
