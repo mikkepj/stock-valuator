@@ -113,7 +113,7 @@
 
 ---
 
-## Fase 3.5 — Calibración DCF y Escenarios
+## Fase 3.6 — Calibración DCF y Escenarios
 
 **Objetivo:** Mejorar la precisión del motor DCF ajustando parámetros de mercado y añadiendo tres escenarios de valuación (Base, Optimista, Pesimista) para acercar resultados a la realidad del mercado.
 
@@ -121,13 +121,13 @@
 
 **Contexto:** Investigación comparativa con AlphaSpread reveló que nuestro IV es ~50% menor por dos causas principales: ERP histórico fijo (5.5%) vs. implícito de mercado (~4.5%), y ausencia de escenarios que capturen distintas hipótesis de crecimiento.
 
-### 3.5.1 Ajuste del Equity Risk Premium
+### 3.6.1 Ajuste del Equity Risk Premium
 
 - [ ] **TEST** `WaccCalculatorTest` — verificar que con ERP=4.5% y beta=1.1 el WACC de MSFT resulta ~8.6% (más cercano al consenso de mercado)
 - [ ] Cambiar el default de `marketRiskPremium` de `0.055` a `0.045` en `application.yml` y `CLAUDE.md`
 - [ ] Documentar en `CLAUDE.md` la diferencia entre ERP histórico (5.5%) y ERP implícito (~4–4.5%)
 
-### 3.5.2 Tres escenarios de valuación (Base, Optimista, Pesimista)
+### 3.6.2 Tres escenarios de valuación (Base, Optimista, Pesimista)
 
 - [ ] **TEST** `ScenarioAnalyzerTest` — los tres escenarios retornan IVs distintos; Optimista > Base > Pesimista; parámetros de crecimiento correctamente aplicados
 - [ ] Crear record `ScenarioParameters`: `name` (String), `fcfGrowthOverride` (BigDecimal, nullable), `terminalGrowthRate` (BigDecimal), `waccAdjustment` (BigDecimal delta sobre WACC base)
@@ -137,7 +137,7 @@
   - `Pesimista`: tasa inicial = CAGR histórico × 0.75, decay más agresivo, WACC +0.5%
 - [ ] Crear record `ScenarioResult`: `scenarioName`, `intrinsicValuePerShare`, `marginOfSafety`, `verdict`, `growthRateUsed`, `waccUsed`
 
-### 3.5.3 Integración en ValuationService y API
+### 3.6.3 Integración en ValuationService y API
 
 - [ ] **TEST** `ValuationServiceTest` — `calculate()` retorna los tres escenarios en el response; cada escenario tiene IV distinto
 - [ ] Agregar campo `scenarios` (`List<ScenarioResult>`) a `ValuationResponse`
@@ -145,7 +145,7 @@
 - [ ] Actualizar `ValuationMapper` para mapear `scenarios` en la entidad y el response
 - [ ] Agregar columna `scenarios jsonb` en tabla `valuation_result` con migración Flyway `V4__add_scenarios.sql`
 
-### 3.5.4 Actualizar Sensitivity Matrix
+### 3.6.4 Actualizar Sensitivity Matrix
 
 - [ ] Verificar que la sensitivity matrix existente (5×5 WACC × growth) sigue siendo coherente con el escenario Base
 - [ ] Incluir en el `breakdown` los valores intermedios clave: FCF base usado, CAGR histórico calculado, tasa inicial de proyección
