@@ -102,10 +102,10 @@ public class ValuationService {
         var company = companyRepository.findByTicker(t)
                 .orElseThrow(() -> new TickerNotFoundException(t));
 
-        var financials = buildCompanyFinancials(t);
-
         var marketData = marketDataRepository.findTopByCompanyTickerOrderByFetchedAtDesc(t)
                 .orElseThrow(() -> new InsufficientDataException(t, "sin datos de mercado"));
+
+        var financials = buildCompanyFinancials(t, marketData);
 
         var params = new DcfParameters(
                 riskFreeRate, marketRiskPremium, terminalGrowthRate,
@@ -134,8 +134,10 @@ public class ValuationService {
     /**
      * Construye el input del engine a partir de los datos persistidos en DB.
      * Combina datos de CASHFLOW, BALANCE e INCOME en orden ascendente por año.
+     * El beta real viene de market_data.
      */
-    private CompanyFinancials buildCompanyFinancials(String ticker) {
+    private CompanyFinancials buildCompanyFinancials(String ticker,
+            com.nuvixtech.stockvaluator.ingestion.entity.MarketData marketData) {
         var cashFlows = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
                 ticker, StatementType.CASHFLOW);
         var balances = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
@@ -161,8 +163,35 @@ public class ValuationService {
         var latestBalance = balances.isEmpty() ? null : balances.get(0);
         // Tomar el income más reciente
         var latestIncome = incomes.isEmpty() ? null : incomes.get(0);
-        // Tomar el cashflow más reciente para beta y shares
+        // Tomar el cashflow más reciente para shares outstanding
         var latestCashFlow = cashFlows.get(0);
+
+        // interestExpense e incomeTaxExpense: preferir INCOME, fallback a CASHFLOW
+        BigDecimal interestExpense = safeValue(latestIncome, FinancialStatement::getInterestExpense);
+        if (interestExpense.compareTo(BigDecimal.ZERO) == 0) {
+            interestExpense = safeValue(latestCashFlow, FinancialStatement::getInterestExpense);
+        }
+        BigDecimal incomeTaxExpense = safeValue(latestIncome, FinancialStatement::getIncomeTaxExpense);
+        if (incomeTaxExpense.compareTo(BigDecimal.ZERO) == 0) {
+            incomeTaxExpense = safeValue(latestCashFlow, FinancialStatement::getIncomeTaxExpense);
+        }
+
+        // Beta real desde market_data; fallback a 1.0 si no está disponible
+        BigDecimal beta = (marketData.getBeta() != null && marketData.getBeta().compareTo(BigDecimal.ZERO) > 0)
+                ? marketData.getBeta()
+                : BigDecimal.ONE;
+
+        // sharesOutstanding desde CASHFLOW; fallback a INCOME
+        Long shares = latestCashFlow.getSharesOutstanding();
+        if (shares == null || shares == 0L) {
+            shares = latestIncome != null ? latestIncome.getSharesOutstanding() : null;
+        }
+        if (shares == null || shares == 0L) {
+            throw new InsufficientDataException(ticker, "shares outstanding no disponible");
+        }
+
+        log.debug("buildCompanyFinancials {}: beta={}, shares={}, interestExp={}, taxExp={}",
+                ticker, beta, shares, interestExpense, incomeTaxExpense);
 
         return new CompanyFinancials(
                 ticker,
@@ -170,11 +199,11 @@ public class ValuationService {
                 safeValue(latestBalance, FinancialStatement::getTotalDebt),
                 safeValue(latestBalance, FinancialStatement::getCashAndEquivalents),
                 safeValue(latestBalance, FinancialStatement::getTotalEquity),
-                safeValue(latestIncome, FinancialStatement::getInterestExpense),
-                safeValue(latestIncome, FinancialStatement::getIncomeTaxExpense),
-                new BigDecimal("1.0"), // beta se obtiene de market_data, no de financial_statement
-                latestCashFlow.getSharesOutstanding() != null ? latestCashFlow.getSharesOutstanding() : 1_000_000_000L,
-                safeValue(latestIncome, FinancialStatement::getEbitda)
+                interestExpense,
+                incomeTaxExpense,
+                beta,
+                shares,
+                safeValue(latestIncome != null ? latestIncome : latestCashFlow, FinancialStatement::getEbitda)
         );
     }
 
