@@ -59,7 +59,7 @@ stockvaluator:
     refresh-cron: "0 0 6 * * SAT"  # Every Saturday at 6 AM
   dcf:
     risk-free-rate: 0.045
-    market-risk-premium: 0.055
+    market-risk-premium: 0.045  # ERP implícito de mercado (antes 0.055 histórico)
     terminal-growth-rate: 0.025
     projection-years: 10
 

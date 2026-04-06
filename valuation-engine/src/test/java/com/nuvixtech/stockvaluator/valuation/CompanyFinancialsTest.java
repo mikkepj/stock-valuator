@@ -26,7 +26,9 @@ class CompanyFinancialsTest {
                 new BigDecimal("29000000000"),    // incomeTaxExpense
                 new BigDecimal("1.24"),           // beta
                 15441926000L,                     // sharesOutstanding
-                new BigDecimal("125000000000")    // ebitda
+                new BigDecimal("125000000000"),   // ebitda
+                BigDecimal.ZERO,                  // marketCap (usa totalEquity como fallback)
+                List.of()                         // sin estimaciones de analistas
         );
 
         assertEquals("AAPL", financials.ticker());
@@ -42,7 +44,7 @@ class CompanyFinancialsTest {
                 null, fcf,
                 BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("1.0"), 1000L, BigDecimal.TEN
+                new BigDecimal("1.0"), 1000L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         ));
     }
 
@@ -52,7 +54,7 @@ class CompanyFinancialsTest {
                 "AAPL", null,
                 BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("1.0"), 1000L, BigDecimal.TEN
+                new BigDecimal("1.0"), 1000L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         ));
     }
 
@@ -62,7 +64,7 @@ class CompanyFinancialsTest {
                 "AAPL", Collections.emptyList(),
                 BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("1.0"), 1000L, BigDecimal.TEN
+                new BigDecimal("1.0"), 1000L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         ));
     }
 
@@ -74,7 +76,7 @@ class CompanyFinancialsTest {
                 "AAPL", fcf,
                 null, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("1.0"), 1000L, BigDecimal.TEN
+                new BigDecimal("1.0"), 1000L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         ));
     }
 
@@ -86,7 +88,7 @@ class CompanyFinancialsTest {
                 "AAPL", fcf,
                 BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("1.0"), 0L, BigDecimal.TEN
+                new BigDecimal("1.0"), 0L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         ));
     }
 
@@ -97,7 +99,7 @@ class CompanyFinancialsTest {
                 "MSFT", fcf,
                 BigDecimal.TEN, BigDecimal.ONE, BigDecimal.ONE,
                 BigDecimal.ONE, BigDecimal.ONE,
-                new BigDecimal("0.9"), 1000L, BigDecimal.TEN
+                new BigDecimal("0.9"), 1000L, BigDecimal.TEN, BigDecimal.ZERO, List.of()
         );
 
         assertThrows(UnsupportedOperationException.class,

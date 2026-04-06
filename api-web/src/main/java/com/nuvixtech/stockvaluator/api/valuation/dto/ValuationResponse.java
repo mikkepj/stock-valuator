@@ -2,6 +2,7 @@ package com.nuvixtech.stockvaluator.api.valuation.dto;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 public record ValuationResponse(
@@ -17,6 +18,7 @@ public record ValuationResponse(
         int projectionYears,
         BigDecimal terminalValue,
         BigDecimal netDebt,
+        List<ScenarioResultDto> scenarios,
         Map<String, Map<String, BigDecimal>> sensitivityMatrix,
         Map<String, BigDecimal> breakdown,
         LocalDateTime lastUpdated

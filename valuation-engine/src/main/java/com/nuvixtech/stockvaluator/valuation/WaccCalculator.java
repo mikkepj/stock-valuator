@@ -50,8 +50,10 @@ public class WaccCalculator {
         BigDecimal taxRate = calculateEffectiveTaxRate(financials.incomeTaxExpense());
         BigDecimal costOfDebt = calculateCostOfDebt(financials.interestExpense(), totalDebt, taxRate);
 
-        BigDecimal totalCapital = totalEquity.add(totalDebt, MC);
-        BigDecimal equityWeight = totalEquity.divide(totalCapital, MC);
+        // Usar market cap si está disponible; si no, valor en libros (totalEquity)
+        BigDecimal equityValue = financials.equityValue();
+        BigDecimal totalCapital = equityValue.add(totalDebt, MC);
+        BigDecimal equityWeight = equityValue.divide(totalCapital, MC);
         BigDecimal debtWeight = totalDebt.divide(totalCapital, MC);
 
         return equityWeight.multiply(costOfEquity, MC)

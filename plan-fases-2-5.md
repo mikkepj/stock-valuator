@@ -113,6 +113,55 @@
 
 ---
 
+## Fase 3.6 — Calibración DCF y Escenarios ✅
+
+**Objetivo:** Mejorar la precisión del motor DCF ajustando parámetros de mercado y añadiendo tres escenarios de valuación (Base, Optimista, Pesimista). Soporte para estimaciones de analistas y cap de CAGR histórico.
+
+**Rama:** `feature/dcf-scenarios-calibration`
+
+### 3.6.1 WACC con market cap y ERP implícito
+
+- [x] **TEST** `WaccCalculatorTest` — MSFT con market cap $2.78T produce WACC ~9.2%–9.5%
+- [x] `CompanyFinancials` agrega campo `marketCap` — `equityValue()` retorna market cap si > 0, fallback a totalEquity
+- [x] `WaccCalculator` usa `financials.equityValue()` para ponderar (market cap >> equity en libros para large caps)
+- [x] `marketRiskPremium` cambiado de `0.055` → `0.045` (ERP implícito de mercado) en `application.yml`
+
+### 3.6.2 Tres escenarios de valuación (Base, Optimista, Pesimista)
+
+- [x] **TEST** `ScenarioAnalyzerTest` — 3 escenarios; nombres correctos; Optimista > Base > Pesimista; todos IV > 0; Base == DcfCalculator; null checks
+- [x] Crear record `ScenarioResult`: `scenarioName`, `intrinsicValuePerShare`, `marginOfSafety`, `verdict`, `initialGrowthRate`, `terminalGrowthRate`, `wacc`
+- [x] Crear clase `ScenarioAnalyzer` en `valuation-engine` (sin Spring):
+  - **Base:** DcfCalculator directo
+  - **Optimista:** CAGR × 1.30, cap 25%, WACC base
+  - **Pesimista:** CAGR × 0.75, riskFreeRate + 0.5%
+  - Si hay `analystFcfEstimates`, el CAGR se calcula sobre ellas
+
+### 3.6.3 Integración en ValuationService y API
+
+- [x] Crear `ScenarioResultDto` record en `api-web`
+- [x] Agregar `List<ScenarioResultDto> scenarios` a `ValuationResponse`
+- [x] Actualizar `ValuationService.calculate()` — llama `ScenarioAnalyzer.analyze()`, pasa scenarios al mapper
+- [x] Actualizar `ValuationMapper` — `toEntity(result, scenarios, company)`, deserializa scenarios desde jsonb
+- [x] Migración `V4__add_scenarios_to_valuation_result.sql` — columna `scenarios jsonb`
+- [x] `ValuationEngineConfig` registra bean `ScenarioAnalyzer`
+
+### 3.6.4 Estimaciones de analistas (FCF manual desde Koyfin)
+
+- [x] Entidad `FcfEstimate` + `FcfEstimateRepository`
+- [x] Migración `V5__create_fcf_estimate.sql`
+- [x] `FcfEstimateService.save()` — reemplaza estimaciones existentes, años fiscales desde currentYear+1
+- [x] `POST /api/v1/companies/{ticker}/fcf-estimates` con validación `@NotEmpty` → 204
+- [x] `CompanyFinancials` agrega campo `analystFcfEstimates` (separado de `historicalFcf`)
+- [x] `FreeCashFlowProjector.projectWithEstimates()` — usa estimates para años 1-N sin recalcular CAGR; proyecta años N+1..10 con decay desde tasa implícita del último año estimado
+- [x] `ValuationService.buildCompanyFinancials()` pasa `historicalFcf` e `analystFcfEstimates` como campos separados
+
+### 3.6.5 Cap de CAGR histórico
+
+- [x] **TEST** `FreeCashFlowProjectorTest` — CAGR extremo cappado al 30%; CAGR moderado no afectado
+- [x] `FreeCashFlowProjector.calculateInitialRate()` — cap de 30% para evitar que históricos excepcionales inflen el IV irrealmente
+
+---
+
 ## Fase 4 — Dashboard
 
 **Objetivo:** SPA React + TypeScript servida por Spring Boot con watchlist visual y detalle de ticker.

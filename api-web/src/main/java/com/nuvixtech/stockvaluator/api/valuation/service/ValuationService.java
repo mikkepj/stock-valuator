@@ -8,12 +8,14 @@ import com.nuvixtech.stockvaluator.api.valuation.repository.ValuationResultRepos
 import com.nuvixtech.stockvaluator.ingestion.entity.FinancialStatement;
 import com.nuvixtech.stockvaluator.ingestion.entity.StatementType;
 import com.nuvixtech.stockvaluator.ingestion.repository.CompanyRepository;
+import com.nuvixtech.stockvaluator.ingestion.repository.FcfEstimateRepository;
 import com.nuvixtech.stockvaluator.ingestion.repository.FinancialStatementRepository;
 import com.nuvixtech.stockvaluator.ingestion.repository.MarketDataRepository;
 import com.nuvixtech.stockvaluator.ingestion.service.FinancialDataService;
 import com.nuvixtech.stockvaluator.valuation.CompanyFinancials;
 import com.nuvixtech.stockvaluator.valuation.DcfCalculator;
 import com.nuvixtech.stockvaluator.valuation.DcfParameters;
+import com.nuvixtech.stockvaluator.valuation.ScenarioAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.SensitivityAnalyzer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -35,9 +37,11 @@ public class ValuationService {
     private final FinancialStatementRepository statementRepository;
     private final MarketDataRepository marketDataRepository;
     private final CompanyRepository companyRepository;
+    private final FcfEstimateRepository fcfEstimateRepository;
     private final FinancialDataService financialDataService;
     private final DcfCalculator dcfCalculator;
     private final SensitivityAnalyzer sensitivityAnalyzer;
+    private final ScenarioAnalyzer scenarioAnalyzer;
     private final ValuationMapper mapper;
 
     private final BigDecimal riskFreeRate;
@@ -50,21 +54,25 @@ public class ValuationService {
             FinancialStatementRepository statementRepository,
             MarketDataRepository marketDataRepository,
             CompanyRepository companyRepository,
+            FcfEstimateRepository fcfEstimateRepository,
             FinancialDataService financialDataService,
             DcfCalculator dcfCalculator,
             SensitivityAnalyzer sensitivityAnalyzer,
+            ScenarioAnalyzer scenarioAnalyzer,
             ValuationMapper mapper,
             @Value("${stockvaluator.dcf.risk-free-rate:0.045}") BigDecimal riskFreeRate,
-            @Value("${stockvaluator.dcf.market-risk-premium:0.055}") BigDecimal marketRiskPremium,
+            @Value("${stockvaluator.dcf.market-risk-premium:0.045}") BigDecimal marketRiskPremium,
             @Value("${stockvaluator.dcf.terminal-growth-rate:0.025}") BigDecimal terminalGrowthRate,
             @Value("${stockvaluator.dcf.projection-years:10}") int projectionYears) {
         this.valuationRepository = valuationRepository;
         this.statementRepository = statementRepository;
         this.marketDataRepository = marketDataRepository;
         this.companyRepository = companyRepository;
+        this.fcfEstimateRepository = fcfEstimateRepository;
         this.financialDataService = financialDataService;
         this.dcfCalculator = dcfCalculator;
         this.sensitivityAnalyzer = sensitivityAnalyzer;
+        this.scenarioAnalyzer = scenarioAnalyzer;
         this.mapper = mapper;
         this.riskFreeRate = riskFreeRate;
         this.marketRiskPremium = marketRiskPremium;
@@ -114,6 +122,7 @@ public class ValuationService {
 
         var result = dcfCalculator.calculate(financials, params);
         var sensitivityMatrix = sensitivityAnalyzer.analyze(financials, params, dcfCalculator);
+        var scenarios = scenarioAnalyzer.analyze(financials, params);
 
         // Reconstruir result con la sensitivity matrix completa
         var resultWithSensitivity = new com.nuvixtech.stockvaluator.valuation.ValuationResult(
@@ -123,7 +132,7 @@ public class ValuationService {
                 result.netDebt(), result.projectedFcfs(), sensitivityMatrix, result.breakdown()
         );
 
-        var entity = mapper.toEntity(resultWithSensitivity, company);
+        var entity = mapper.toEntity(resultWithSensitivity, scenarios, company);
         var saved = valuationRepository.save(entity);
         log.info("Valuación guardada para {}: IV={}, verdict={}",
                 t, result.intrinsicValuePerShare(), result.verdict());
@@ -157,6 +166,17 @@ public class ValuationService {
 
         if (historicalFcf.isEmpty()) {
             throw new InsufficientDataException(ticker, "FCF histórico no disponible o cero");
+        }
+
+        // Estimaciones de analistas: se usan directamente para los primeros N años de proyección
+        // (no se calcula CAGR sobre ellas, evitando el doble conteo de crecimiento)
+        var fcfEstimates = fcfEstimateRepository.findByCompanyTickerOrderByFiscalYearAsc(ticker);
+        var analystFcfEstimates = fcfEstimates.stream()
+                .map(com.nuvixtech.stockvaluator.ingestion.entity.FcfEstimate::getEstimatedFcf)
+                .toList();
+
+        if (!analystFcfEstimates.isEmpty()) {
+            log.info("Usando {} FCF estimates de analistas para {}", analystFcfEstimates.size(), ticker);
         }
 
         // Tomar el balance más reciente
@@ -193,6 +213,11 @@ public class ValuationService {
         log.debug("buildCompanyFinancials {}: beta={}, shares={}, interestExp={}, taxExp={}",
                 ticker, beta, shares, interestExpense, incomeTaxExpense);
 
+        // Market cap = precio × shares (para ponderar WACC correctamente)
+        BigDecimal marketCap = marketData.getMarketCap() != null && marketData.getMarketCap().compareTo(BigDecimal.ZERO) > 0
+                ? marketData.getMarketCap()
+                : marketData.getPrice().multiply(BigDecimal.valueOf(shares));
+
         return new CompanyFinancials(
                 ticker,
                 historicalFcf,
@@ -203,7 +228,9 @@ public class ValuationService {
                 incomeTaxExpense,
                 beta,
                 shares,
-                safeValue(latestIncome != null ? latestIncome : latestCashFlow, FinancialStatement::getEbitda)
+                safeValue(latestIncome != null ? latestIncome : latestCashFlow, FinancialStatement::getEbitda),
+                marketCap,
+                analystFcfEstimates
         );
     }
 
