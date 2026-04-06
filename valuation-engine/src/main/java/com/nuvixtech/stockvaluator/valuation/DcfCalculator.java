@@ -43,9 +43,10 @@ public class DcfCalculator {
         // 1. Calcular WACC
         BigDecimal wacc = waccCalculator.calculate(financials, params.riskFreeRate(), params.marketRiskPremium());
 
-        // 2. Proyectar FCFs futuros
-        List<ProjectedFcf> projectedFcfs = fcfProjector.project(
-                financials.historicalFcf(), params.terminalGrowthRate(), params.projectionYears());
+        // 2. Proyectar FCFs futuros (usa estimaciones de analistas si están disponibles)
+        List<ProjectedFcf> projectedFcfs = fcfProjector.projectWithEstimates(
+                financials.historicalFcf(), financials.analystFcfEstimates(),
+                params.terminalGrowthRate(), params.projectionYears());
 
         // 3. Calcular suma del PV de FCFs proyectados
         BigDecimal sumPvFcfs = calculateSumPvFcfs(projectedFcfs, wacc);

@@ -41,7 +41,9 @@ class DcfCalculatorTest {
                 new BigDecimal("29000000000"),   // incomeTaxExpense
                 new BigDecimal("1.24"),          // beta
                 15441926000L,                    // sharesOutstanding
-                new BigDecimal("125000000000")   // ebitda
+                new BigDecimal("125000000000"),  // ebitda
+                BigDecimal.ZERO,                 // marketCap (fallback a totalEquity)
+                List.of()                        // sin estimaciones de analistas
         );
 
         var params = DcfParameters.defaults(new BigDecimal("178.50"));
@@ -77,7 +79,9 @@ class DcfCalculatorTest {
                 new BigDecimal("5000000000"),
                 new BigDecimal("1.0"),
                 1000000000L,
-                new BigDecimal("15000000000")
+                new BigDecimal("15000000000"),
+                BigDecimal.ZERO,
+                List.of()
         );
 
         var params = DcfParameters.defaults(new BigDecimal("100"));
@@ -117,7 +121,9 @@ class DcfCalculatorTest {
                 new BigDecimal("10000000000"),
                 new BigDecimal("0.8"),
                 100000000L,                      // 100M shares
-                new BigDecimal("130000000000")
+                new BigDecimal("130000000000"),
+                BigDecimal.ZERO,
+                List.of()
         );
         // Con FCF de 120B y solo 100M shares: IV estimada muy alta vs precio de $10
         var params = DcfParameters.defaults(new BigDecimal("10"));
@@ -141,7 +147,9 @@ class DcfCalculatorTest {
                 new BigDecimal("100000"),
                 new BigDecimal("1.5"),
                 1000000000L,                         // 1000M shares
-                new BigDecimal("2000000")
+                new BigDecimal("2000000"),
+                BigDecimal.ZERO,
+                List.of()
         );
         // Con FCF de 1M y 1000M shares, IV por acción será fracción de centavo vs $500
         var params = DcfParameters.defaults(new BigDecimal("500"));
@@ -198,7 +206,9 @@ class DcfCalculatorTest {
                 new BigDecimal("8000000000"),
                 new BigDecimal("1.1"),
                 5000000000L,
-                new BigDecimal("80000000000")
+                new BigDecimal("80000000000"),
+                BigDecimal.ZERO,
+                List.of()
         );
     }
 }

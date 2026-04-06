@@ -115,12 +115,43 @@ class WaccCalculatorTest {
     }
 
     @Test
+    void calculate_msftWithMarketCapAndImpliedErp_producesMarketAlignedWacc() {
+        // MSFT FY2024: market cap ~$2.78T, deuda $97B → equity weight ~97%
+        var financials = new CompanyFinancials(
+                "MSFT",
+                List.of(new BigDecimal("75000000000")),
+                new BigDecimal("97000000000"),    // totalDebt
+                new BigDecimal("18000000000"),    // cashAndEquivalents
+                new BigDecimal("268000000000"),   // totalEquity (valor en libros)
+                new BigDecimal("2385000000"),     // interestExpense
+                new BigDecimal("21795000000"),    // incomeTaxExpense
+                new BigDecimal("1.107"),          // beta real
+                7433000000L,                      // sharesOutstanding
+                new BigDecimal("140000000000"),   // ebitda
+                new BigDecimal("2780000000000"),  // marketCap ~$2.78T
+                List.of()
+        );
+        // ERP implícito de mercado (~4.5%)
+        BigDecimal impliedErp = new BigDecimal("0.045");
+
+        var wacc = calculator.calculate(financials, RISK_FREE_RATE, impliedErp);
+
+        // Con market cap $2.78T y deuda $97B → equity weight ~97%
+        // Ke = 4.5% + 1.107×4.5% ≈ 9.48%
+        // WACC ≈ 0.97×9.48% + 0.03×Kd ≈ ~9.2%–9.5%
+        assertTrue(wacc.compareTo(new BigDecimal("0.08")) > 0,
+                "WACC MSFT con market cap debe ser > 8%, fue: " + wacc);
+        assertTrue(wacc.compareTo(new BigDecimal("0.11")) < 0,
+                "WACC MSFT con market cap debe ser < 11%, fue: " + wacc);
+    }
+
+    @Test
     void calculate_nullFinancials_throwsException() {
         assertThrows(NullPointerException.class,
                 () -> calculator.calculate(null, RISK_FREE_RATE, MARKET_RISK_PREMIUM));
     }
 
-    // Helper para construir CompanyFinancials con los campos relevantes para WACC
+    // Helper para construir CompanyFinancials con los campos relevantes para WACC (sin market cap)
     private CompanyFinancials buildFinancials(BigDecimal totalDebt, BigDecimal totalEquity,
                                               BigDecimal interestExpense, BigDecimal incomeTaxExpense,
                                               BigDecimal beta) {
@@ -134,7 +165,9 @@ class WaccCalculatorTest {
                 incomeTaxExpense,
                 beta,
                 1000000000L,
-                new BigDecimal("50000000000")
+                new BigDecimal("50000000000"),
+                BigDecimal.ZERO,
+                List.of()
         );
     }
 }

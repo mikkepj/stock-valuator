@@ -7,6 +7,7 @@ import org.hibernate.type.SqlTypes;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 import java.util.Map;
 
 @Entity
@@ -59,6 +60,10 @@ public class ValuationResultEntity {
     @Column(name = "breakdown", columnDefinition = "jsonb")
     private Map<String, BigDecimal> breakdown;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "scenarios", columnDefinition = "jsonb")
+    private List<Map<String, Object>> scenarios;
+
     @PrePersist
     void prePersist() {
         if (calculatedAt == null) {
@@ -110,4 +115,7 @@ public class ValuationResultEntity {
 
     public Map<String, BigDecimal> getBreakdown() { return breakdown; }
     public void setBreakdown(Map<String, BigDecimal> breakdown) { this.breakdown = breakdown; }
+
+    public List<Map<String, Object>> getScenarios() { return scenarios; }
+    public void setScenarios(List<Map<String, Object>> scenarios) { this.scenarios = scenarios; }
 }

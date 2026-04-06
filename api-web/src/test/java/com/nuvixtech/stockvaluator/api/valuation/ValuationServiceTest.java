@@ -11,10 +11,12 @@ import com.nuvixtech.stockvaluator.ingestion.entity.FinancialStatement;
 import com.nuvixtech.stockvaluator.ingestion.entity.MarketData;
 import com.nuvixtech.stockvaluator.ingestion.entity.StatementType;
 import com.nuvixtech.stockvaluator.ingestion.repository.CompanyRepository;
+import com.nuvixtech.stockvaluator.ingestion.repository.FcfEstimateRepository;
 import com.nuvixtech.stockvaluator.ingestion.repository.FinancialStatementRepository;
 import com.nuvixtech.stockvaluator.ingestion.repository.MarketDataRepository;
 import com.nuvixtech.stockvaluator.ingestion.service.FinancialDataService;
 import com.nuvixtech.stockvaluator.valuation.DcfCalculator;
+import com.nuvixtech.stockvaluator.valuation.ScenarioAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.SensitivityAnalyzer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -40,8 +42,10 @@ class ValuationServiceTest {
     @Mock private MarketDataRepository marketDataRepository;
     @Mock private CompanyRepository companyRepository;
     @Mock private FinancialDataService financialDataService;
+    @Mock private FcfEstimateRepository fcfEstimateRepository;
     @Mock private DcfCalculator dcfCalculator;
     @Mock private SensitivityAnalyzer sensitivityAnalyzer;
+    @Mock private ScenarioAnalyzer scenarioAnalyzer;
     @Mock private ValuationMapper mapper;
 
     private ValuationService service;
@@ -53,12 +57,14 @@ class ValuationServiceTest {
                 statementRepository,
                 marketDataRepository,
                 companyRepository,
+                fcfEstimateRepository,
                 financialDataService,
                 dcfCalculator,
                 sensitivityAnalyzer,
+                scenarioAnalyzer,
                 mapper,
                 new BigDecimal("0.045"),
-                new BigDecimal("0.055"),
+                new BigDecimal("0.045"),
                 new BigDecimal("0.025"),
                 10
         );
@@ -107,9 +113,11 @@ class ValuationServiceTest {
                 eq("MSFT"), eq(StatementType.INCOME))).thenReturn(statements);
         when(marketDataRepository.findTopByCompanyTickerOrderByFetchedAtDesc("MSFT"))
                 .thenReturn(Optional.of(marketData));
+        when(fcfEstimateRepository.findByCompanyTickerOrderByFiscalYearAsc(any())).thenReturn(Collections.emptyList());
         when(dcfCalculator.calculate(any(), any())).thenReturn(buildValuationResult("MSFT"));
         when(sensitivityAnalyzer.analyze(any(), any(), any())).thenReturn(Collections.emptyMap());
-        when(mapper.toEntity(any(), eq(company))).thenReturn(entity);
+        when(scenarioAnalyzer.analyze(any(), any())).thenReturn(Collections.emptyList());
+        when(mapper.toEntity(any(), any(), eq(company))).thenReturn(entity);
         when(valuationRepository.save(entity)).thenReturn(entity);
         when(mapper.toResponse(entity)).thenReturn(expectedResponse);
 
@@ -145,7 +153,8 @@ class ValuationServiceTest {
                 .thenReturn(Optional.of(marketData));
         when(dcfCalculator.calculate(any(), any())).thenReturn(buildValuationResult("GOOG"));
         when(sensitivityAnalyzer.analyze(any(), any(), any())).thenReturn(Collections.emptyMap());
-        when(mapper.toEntity(any(), eq(company))).thenReturn(entity);
+        when(scenarioAnalyzer.analyze(any(), any())).thenReturn(Collections.emptyList());
+        when(mapper.toEntity(any(), any(), eq(company))).thenReturn(entity);
         when(valuationRepository.save(entity)).thenReturn(entity);
         when(mapper.toResponse(entity)).thenReturn(expectedResponse);
 
@@ -190,7 +199,7 @@ class ValuationServiceTest {
                 new BigDecimal("12.04"), "FAIR_VALUE",
                 new BigDecimal("0.089"), new BigDecimal("0.025"), 10,
                 new BigDecimal("1000000000000"), new BigDecimal("48000000000"),
-                Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(),
                 LocalDateTime.now()
         );
     }

@@ -1,20 +1,28 @@
 package com.nuvixtech.stockvaluator.api.valuation.mapper;
 
+import com.nuvixtech.stockvaluator.api.valuation.dto.ScenarioResultDto;
 import com.nuvixtech.stockvaluator.api.valuation.dto.ValuationResponse;
 import com.nuvixtech.stockvaluator.api.valuation.dto.WatchlistItemResponse;
 import com.nuvixtech.stockvaluator.api.valuation.entity.ValuationResultEntity;
 import com.nuvixtech.stockvaluator.ingestion.entity.Company;
 import com.nuvixtech.stockvaluator.ingestion.entity.MarketData;
+import com.nuvixtech.stockvaluator.valuation.ScenarioResult;
 import com.nuvixtech.stockvaluator.valuation.ValuationResult;
 import org.springframework.stereotype.Component;
 
+import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.Collections;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 @Component
 public class ValuationMapper {
 
-    /** Convierte el resultado del engine + company a entidad JPA para persistir. */
-    public ValuationResultEntity toEntity(ValuationResult result, Company company) {
+    /** Convierte el resultado del engine + escenarios + company a entidad JPA para persistir. */
+    public ValuationResultEntity toEntity(ValuationResult result, List<ScenarioResult> scenarios,
+                                           Company company) {
         var entity = new ValuationResultEntity();
         entity.setCompany(company);
         entity.setCalculatedAt(LocalDateTime.now());
@@ -29,6 +37,7 @@ public class ValuationMapper {
         entity.setNetDebt(result.netDebt());
         entity.setSensitivityMatrix(result.sensitivityMatrix());
         entity.setBreakdown(result.breakdown());
+        entity.setScenarios(scenariosToMaps(scenarios));
         return entity;
     }
 
@@ -48,6 +57,7 @@ public class ValuationMapper {
                 entity.getProjectionYears() != null ? entity.getProjectionYears() : 10,
                 entity.getTerminalValue(),
                 entity.getNetDebt(),
+                mapsToScenarioDtos(entity.getScenarios()),
                 entity.getSensitivityMatrix(),
                 entity.getBreakdown(),
                 entity.getCalculatedAt()
@@ -65,5 +75,40 @@ public class ValuationMapper {
                 entity.getMarginOfSafety(),
                 entity.getVerdict()
         );
+    }
+
+    private List<Map<String, Object>> scenariosToMaps(List<ScenarioResult> scenarios) {
+        if (scenarios == null) return Collections.emptyList();
+        return scenarios.stream().map(s -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("scenarioName", s.scenarioName());
+            m.put("intrinsicValuePerShare", s.intrinsicValuePerShare());
+            m.put("marginOfSafety", s.marginOfSafety());
+            m.put("verdict", s.verdict().name());
+            m.put("initialGrowthRate", s.initialGrowthRate());
+            m.put("terminalGrowthRate", s.terminalGrowthRate());
+            m.put("wacc", s.wacc());
+            return m;
+        }).toList();
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<ScenarioResultDto> mapsToScenarioDtos(List<Map<String, Object>> scenarios) {
+        if (scenarios == null) return Collections.emptyList();
+        return scenarios.stream().map(m -> new ScenarioResultDto(
+                (String) m.get("scenarioName"),
+                toBigDecimal(m.get("intrinsicValuePerShare")),
+                toBigDecimal(m.get("marginOfSafety")),
+                (String) m.get("verdict"),
+                toBigDecimal(m.get("initialGrowthRate")),
+                toBigDecimal(m.get("terminalGrowthRate")),
+                toBigDecimal(m.get("wacc"))
+        )).toList();
+    }
+
+    private BigDecimal toBigDecimal(Object value) {
+        if (value == null) return null;
+        if (value instanceof BigDecimal bd) return bd;
+        return new BigDecimal(value.toString());
     }
 }
