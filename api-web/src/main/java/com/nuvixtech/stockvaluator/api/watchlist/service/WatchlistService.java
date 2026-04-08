@@ -4,6 +4,7 @@ import com.nuvixtech.stockvaluator.api.exception.TickerNotFoundException;
 import com.nuvixtech.stockvaluator.api.valuation.dto.WatchlistItemResponse;
 import com.nuvixtech.stockvaluator.api.valuation.mapper.ValuationMapper;
 import com.nuvixtech.stockvaluator.api.valuation.repository.ValuationResultRepository;
+import com.nuvixtech.stockvaluator.api.valuation.service.ValuationService;
 import com.nuvixtech.stockvaluator.api.watchlist.entity.WatchlistEntry;
 import com.nuvixtech.stockvaluator.api.watchlist.repository.WatchlistRepository;
 import com.nuvixtech.stockvaluator.ingestion.repository.CompanyRepository;
@@ -23,20 +24,24 @@ public class WatchlistService {
     private final ValuationResultRepository valuationResultRepository;
     private final MarketDataRepository marketDataRepository;
     private final ValuationMapper mapper;
+    private final ValuationService valuationService;
 
     public WatchlistService(WatchlistRepository watchlistRepository,
                              CompanyRepository companyRepository,
                              ValuationResultRepository valuationResultRepository,
                              MarketDataRepository marketDataRepository,
-                             ValuationMapper mapper) {
+                             ValuationMapper mapper,
+                             ValuationService valuationService) {
         this.watchlistRepository = watchlistRepository;
         this.companyRepository = companyRepository;
         this.valuationResultRepository = valuationResultRepository;
         this.marketDataRepository = marketDataRepository;
         this.mapper = mapper;
+        this.valuationService = valuationService;
     }
 
     @Cacheable("watchlist")
+    @Transactional(readOnly = true)
     public List<WatchlistItemResponse> getWatchlist() {
         return watchlistRepository.findAll().stream()
                 .map(entry -> {
@@ -56,6 +61,10 @@ public class WatchlistService {
     @Transactional
     public WatchlistItemResponse add(String ticker) {
         String t = ticker.toUpperCase();
+
+        // Calcular valuación primero — esto también ingesta si el ticker no existe todavía
+        valuationService.calculate(t);
+
         var company = companyRepository.findByTicker(t)
                 .orElseThrow(() -> new TickerNotFoundException(t));
 
@@ -65,11 +74,11 @@ public class WatchlistService {
             watchlistRepository.save(entry);
         }
 
-        var latestValuation = valuationResultRepository
+        var valuation = valuationResultRepository
                 .findFirstByCompanyTickerOrderByCalculatedAtDesc(t)
                 .orElseThrow(() -> new TickerNotFoundException(t));
         var latestMarket = marketDataRepository.findTopByCompanyTickerOrderByFetchedAtDesc(t);
-        return mapper.toWatchlistItem(latestValuation, latestMarket.orElse(null));
+        return mapper.toWatchlistItem(valuation, latestMarket.orElse(null));
     }
 
     @CacheEvict(value = "watchlist", allEntries = true)

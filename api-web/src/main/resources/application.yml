@@ -62,6 +62,10 @@ stockvaluator:
     market-risk-premium: 0.045  # ERP implícito de mercado (antes 0.055 histórico)
     terminal-growth-rate: 0.025
     projection-years: 10
+  cors:
+    # Orígenes permitidos — sobreescribir en prod con la URL real del FE
+    # Ejemplo prod: allowed-origins: https://stock-valuator.vercel.app
+    allowed-origins: http://localhost:5173,http://localhost:3000
 
 # -----------------------------------------------------------
 # Actuator
