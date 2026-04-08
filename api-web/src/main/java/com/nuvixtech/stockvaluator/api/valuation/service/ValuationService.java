@@ -84,6 +84,7 @@ public class ValuationService {
      * Retorna la valuación más reciente cacheada. Lanza TickerNotFoundException si no hay datos.
      */
     @Cacheable(value = "valuations", key = "#ticker.toUpperCase()")
+    @Transactional(readOnly = true)
     public ValuationResponse getLatestValuation(String ticker) {
         String t = ticker.toUpperCase();
         log.debug("getLatestValuation: {}", t);
