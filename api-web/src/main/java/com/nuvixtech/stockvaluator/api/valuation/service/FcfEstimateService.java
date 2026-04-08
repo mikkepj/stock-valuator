@@ -37,8 +37,10 @@ public class FcfEstimateService {
         var company = companyRepository.findByTicker(t)
                 .orElseThrow(() -> new TickerNotFoundException(t));
 
-        // Eliminar estimaciones previas y reemplazar
+        // Eliminar estimaciones previas y hacer flush antes de insertar
+        // para evitar violación de restricción única (company_id, fiscal_year)
         fcfEstimateRepository.deleteByCompanyTicker(t);
+        fcfEstimateRepository.flush();
 
         int startYear = LocalDate.now().getYear() + 1;
         for (int i = 0; i < estimates.size(); i++) {
