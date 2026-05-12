@@ -22,7 +22,7 @@ public class ValuationMapper {
 
     /** Convierte el resultado del engine + escenarios + company a entidad JPA para persistir. */
     public ValuationResultEntity toEntity(ValuationResult result, List<ScenarioResult> scenarios,
-                                           Company company) {
+                                           Company company, BigDecimal betaUsed) {
         var entity = new ValuationResultEntity();
         entity.setCompany(company);
         entity.setCalculatedAt(LocalDateTime.now());
@@ -35,6 +35,7 @@ public class ValuationMapper {
         entity.setProjectionYears(result.projectionYears());
         entity.setTerminalValue(result.terminalValue());
         entity.setNetDebt(result.netDebt());
+        entity.setBetaUsed(betaUsed);
         entity.setSensitivityMatrix(result.sensitivityMatrix());
         entity.setBreakdown(result.breakdown());
         entity.setScenarios(scenariosToMaps(scenarios));
@@ -57,6 +58,7 @@ public class ValuationMapper {
                 entity.getProjectionYears() != null ? entity.getProjectionYears() : 10,
                 entity.getTerminalValue(),
                 entity.getNetDebt(),
+                entity.getBetaUsed(),
                 mapsToScenarioDtos(entity.getScenarios()),
                 entity.getSensitivityMatrix(),
                 entity.getBreakdown(),

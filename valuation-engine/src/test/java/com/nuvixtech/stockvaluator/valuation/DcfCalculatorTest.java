@@ -190,6 +190,48 @@ class DcfCalculatorTest {
                 () -> calculator.calculate(financials, null));
     }
 
+    @Test
+    void calculate_lowerBeta_producesLowerWaccAndHigherIV() {
+        // Mismos datos, distinto beta: beta 1.0 debe producir WACC menor e IV mayor que beta 2.0
+        var financialsHighBeta = new CompanyFinancials(
+                "NVDA",
+                List.of(new BigDecimal("40000000000"), new BigDecimal("60000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("15000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("200000000"),
+                new BigDecimal("4000000000"),
+                new BigDecimal("2.0"),   // beta alto
+                24000000000L,
+                new BigDecimal("60000000000"),
+                new BigDecimal("1000000000000"),
+                List.of()
+        );
+        var financialsLowBeta = new CompanyFinancials(
+                "NVDA",
+                List.of(new BigDecimal("40000000000"), new BigDecimal("60000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("15000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("200000000"),
+                new BigDecimal("4000000000"),
+                new BigDecimal("1.0"),   // beta bajo (override)
+                24000000000L,
+                new BigDecimal("60000000000"),
+                new BigDecimal("1000000000000"),
+                List.of()
+        );
+        var params = DcfParameters.defaults(new BigDecimal("178"));
+
+        var resultHighBeta = calculator.calculate(financialsHighBeta, params);
+        var resultLowBeta = calculator.calculate(financialsLowBeta, params);
+
+        assertTrue(resultLowBeta.wacc().compareTo(resultHighBeta.wacc()) < 0,
+                "Beta menor debe producir WACC menor");
+        assertTrue(resultLowBeta.intrinsicValuePerShare().compareTo(resultHighBeta.intrinsicValuePerShare()) > 0,
+                "Beta menor debe producir IV por acción mayor");
+    }
+
     // Helper para financials simples
     private CompanyFinancials buildSimpleFinancials(String ticker) {
         return new CompanyFinancials(

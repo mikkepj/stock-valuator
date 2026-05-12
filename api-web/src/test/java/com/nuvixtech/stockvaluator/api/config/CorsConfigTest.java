@@ -72,6 +72,7 @@ class CorsConfigTest {
                 new BigDecimal("12.04"), "FAIR_VALUE",
                 new BigDecimal("0.089"), new BigDecimal("0.025"), 10,
                 new BigDecimal("1000000000000"), new BigDecimal("48000000000"),
+                null,
                 Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(),
                 LocalDateTime.now()
         );

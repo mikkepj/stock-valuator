@@ -52,6 +52,9 @@ public class ValuationResultEntity {
     @Column(name = "net_debt", precision = 20, scale = 2)
     private BigDecimal netDebt;
 
+    @Column(name = "beta_used", precision = 6, scale = 4)
+    private BigDecimal betaUsed;
+
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "sensitivity_matrix", columnDefinition = "jsonb")
     private Map<String, Map<String, BigDecimal>> sensitivityMatrix;
@@ -107,6 +110,9 @@ public class ValuationResultEntity {
 
     public BigDecimal getNetDebt() { return netDebt; }
     public void setNetDebt(BigDecimal netDebt) { this.netDebt = netDebt; }
+
+    public BigDecimal getBetaUsed() { return betaUsed; }
+    public void setBetaUsed(BigDecimal betaUsed) { this.betaUsed = betaUsed; }
 
     public Map<String, Map<String, BigDecimal>> getSensitivityMatrix() { return sensitivityMatrix; }
     public void setSensitivityMatrix(Map<String, Map<String, BigDecimal>> sensitivityMatrix) {

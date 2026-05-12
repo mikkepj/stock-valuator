@@ -18,6 +18,7 @@ public record ValuationResponse(
         int projectionYears,
         BigDecimal terminalValue,
         BigDecimal netDebt,
+        BigDecimal betaUsed,
         List<ScenarioResultDto> scenarios,
         Map<String, Map<String, BigDecimal>> sensitivityMatrix,
         Map<String, BigDecimal> breakdown,
