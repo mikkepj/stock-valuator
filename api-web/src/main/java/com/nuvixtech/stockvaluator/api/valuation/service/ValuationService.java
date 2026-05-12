@@ -99,8 +99,17 @@ public class ValuationService {
     @CacheEvict(value = "valuations", key = "#ticker.toUpperCase()")
     @Transactional
     public ValuationResponse calculate(String ticker) {
+        return calculate(ticker, null);
+    }
+
+    /**
+     * Fuerza un recálculo con beta opcional. Si betaOverride es null, usa el beta de mercado.
+     */
+    @CacheEvict(value = "valuations", key = "#ticker.toUpperCase()")
+    @Transactional
+    public ValuationResponse calculate(String ticker, BigDecimal betaOverride) {
         String t = ticker.toUpperCase();
-        log.info("calculate: {}", t);
+        log.info("calculate: {} (betaOverride={})", t, betaOverride);
 
         // Ingestar si la empresa no existe aún
         if (companyRepository.findByTicker(t).isEmpty()) {
@@ -114,7 +123,7 @@ public class ValuationService {
         var marketData = marketDataRepository.findTopByCompanyTickerOrderByFetchedAtDesc(t)
                 .orElseThrow(() -> new InsufficientDataException(t, "sin datos de mercado"));
 
-        var financials = buildCompanyFinancials(t, marketData);
+        var financials = buildCompanyFinancials(t, marketData, betaOverride);
 
         var params = new DcfParameters(
                 riskFreeRate, marketRiskPremium, terminalGrowthRate,
@@ -133,10 +142,10 @@ public class ValuationService {
                 result.netDebt(), result.projectedFcfs(), sensitivityMatrix, result.breakdown()
         );
 
-        var entity = mapper.toEntity(resultWithSensitivity, scenarios, company);
+        var entity = mapper.toEntity(resultWithSensitivity, scenarios, company, financials.beta());
         var saved = valuationRepository.save(entity);
-        log.info("Valuación guardada para {}: IV={}, verdict={}",
-                t, result.intrinsicValuePerShare(), result.verdict());
+        log.info("Valuación guardada para {}: IV={}, verdict={}, beta={}",
+                t, result.intrinsicValuePerShare(), result.verdict(), financials.beta());
 
         return mapper.toResponse(saved);
     }
@@ -144,10 +153,11 @@ public class ValuationService {
     /**
      * Construye el input del engine a partir de los datos persistidos en DB.
      * Combina datos de CASHFLOW, BALANCE e INCOME en orden ascendente por año.
-     * El beta real viene de market_data.
+     * El beta real viene de market_data; betaOverride lo reemplaza si se provee.
      */
     private CompanyFinancials buildCompanyFinancials(String ticker,
-            com.nuvixtech.stockvaluator.ingestion.entity.MarketData marketData) {
+            com.nuvixtech.stockvaluator.ingestion.entity.MarketData marketData,
+            BigDecimal betaOverride) {
         var cashFlows = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
                 ticker, StatementType.CASHFLOW);
         var balances = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
@@ -197,10 +207,16 @@ public class ValuationService {
             incomeTaxExpense = safeValue(latestCashFlow, FinancialStatement::getIncomeTaxExpense);
         }
 
-        // Beta real desde market_data; fallback a 1.0 si no está disponible
-        BigDecimal beta = (marketData.getBeta() != null && marketData.getBeta().compareTo(BigDecimal.ZERO) > 0)
-                ? marketData.getBeta()
-                : BigDecimal.ONE;
+        // Beta: usar override si se provee; si no, el beta real de market_data; fallback 1.0
+        BigDecimal beta;
+        if (betaOverride != null && betaOverride.compareTo(BigDecimal.ZERO) > 0) {
+            beta = betaOverride;
+            log.info("Usando betaOverride={} para {}", betaOverride, ticker);
+        } else {
+            beta = (marketData.getBeta() != null && marketData.getBeta().compareTo(BigDecimal.ZERO) > 0)
+                    ? marketData.getBeta()
+                    : BigDecimal.ONE;
+        }
 
         // sharesOutstanding desde CASHFLOW; fallback a INCOME
         Long shares = latestCashFlow.getSharesOutstanding();

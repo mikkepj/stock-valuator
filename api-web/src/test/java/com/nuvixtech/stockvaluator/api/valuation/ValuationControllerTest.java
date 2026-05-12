@@ -60,19 +60,19 @@ class ValuationControllerTest {
 
     @Test
     void calculate_existingTicker_returns200WithFreshResult() throws Exception {
-        when(valuationService.calculate("MSFT")).thenReturn(buildResponse("MSFT"));
+        when(valuationService.calculate("MSFT", null)).thenReturn(buildResponse("MSFT"));
 
         mockMvc.perform(post("/api/v1/valuations/MSFT/calculate")
                         .accept(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.ticker").value("MSFT"));
 
-        verify(valuationService).calculate("MSFT");
+        verify(valuationService).calculate("MSFT", null);
     }
 
     @Test
     void calculate_unknownTicker_returns404() throws Exception {
-        when(valuationService.calculate("UNKNOWN"))
+        when(valuationService.calculate("UNKNOWN", null))
                 .thenThrow(new TickerNotFoundException("UNKNOWN"));
 
         mockMvc.perform(post("/api/v1/valuations/UNKNOWN/calculate")
@@ -87,6 +87,7 @@ class ValuationControllerTest {
                 new BigDecimal("12.04"), "FAIR_VALUE",
                 new BigDecimal("0.089"), new BigDecimal("0.025"), 10,
                 new BigDecimal("1000000000000"), new BigDecimal("48000000000"),
+                null,
                 Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(),
                 LocalDateTime.now()
         );

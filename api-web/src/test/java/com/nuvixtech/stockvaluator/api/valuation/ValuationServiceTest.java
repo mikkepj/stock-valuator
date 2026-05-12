@@ -117,7 +117,7 @@ class ValuationServiceTest {
         when(dcfCalculator.calculate(any(), any())).thenReturn(buildValuationResult("MSFT"));
         when(sensitivityAnalyzer.analyze(any(), any(), any())).thenReturn(Collections.emptyMap());
         when(scenarioAnalyzer.analyze(any(), any())).thenReturn(Collections.emptyList());
-        when(mapper.toEntity(any(), any(), eq(company))).thenReturn(entity);
+        when(mapper.toEntity(any(), any(), eq(company), any())).thenReturn(entity);
         when(valuationRepository.save(entity)).thenReturn(entity);
         when(mapper.toResponse(entity)).thenReturn(expectedResponse);
 
@@ -154,7 +154,7 @@ class ValuationServiceTest {
         when(dcfCalculator.calculate(any(), any())).thenReturn(buildValuationResult("GOOG"));
         when(sensitivityAnalyzer.analyze(any(), any(), any())).thenReturn(Collections.emptyMap());
         when(scenarioAnalyzer.analyze(any(), any())).thenReturn(Collections.emptyList());
-        when(mapper.toEntity(any(), any(), eq(company))).thenReturn(entity);
+        when(mapper.toEntity(any(), any(), eq(company), any())).thenReturn(entity);
         when(valuationRepository.save(entity)).thenReturn(entity);
         when(mapper.toResponse(entity)).thenReturn(expectedResponse);
 
@@ -199,6 +199,7 @@ class ValuationServiceTest {
                 new BigDecimal("12.04"), "FAIR_VALUE",
                 new BigDecimal("0.089"), new BigDecimal("0.025"), 10,
                 new BigDecimal("1000000000000"), new BigDecimal("48000000000"),
+                null,
                 Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(),
                 LocalDateTime.now()
         );

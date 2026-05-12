@@ -1,0 +1,87 @@
+{
+  "ticker": "NVDA",
+  "companyName": "NVIDIA Corporation",
+  "sector": "Technology",
+  "intrinsicValuePerShare": 34.3500,
+  "marketPrice": 178.1000,
+  "marginOfSafety": -80.7100,
+  "verdict": "OVERVALUED",
+  "wacc": 0.149728,
+  "terminalGrowthRate": 0.025000,
+  "projectionYears": 10,
+  "terminalValue": 300835737481.00,
+  "netDebt": 807000000.00,
+  "scenarios": [
+    {
+      "scenarioName": "Base",
+      "intrinsicValuePerShare": 34.35,
+      "marginOfSafety": -80.71,
+      "verdict": "OVERVALUED",
+      "initialGrowthRate": 0.0950016378,
+      "terminalGrowthRate": 0.025,
+      "wacc": 0.1497275203
+    },
+    {
+      "scenarioName": "Optimista",
+      "intrinsicValuePerShare": 37.88,
+      "marginOfSafety": -78.73,
+      "verdict": "OVERVALUED",
+      "initialGrowthRate": 0.12350212914,
+      "terminalGrowthRate": 0.025,
+      "wacc": 0.1497275203
+    },
+    {
+      "scenarioName": "Pesimista",
+      "intrinsicValuePerShare": 29.52,
+      "marginOfSafety": -83.43,
+      "verdict": "OVERVALUED",
+      "initialGrowthRate": 0.07125122835,
+      "terminalGrowthRate": 0.025,
+      "wacc": 0.1547143727
+    }
+  ],
+  "sensitivityMatrix": {
+    "0.00%": {
+      "0.00%": 34.35,
+      "+1.00%": 35.97,
+      "+2.00%": 37.90,
+      "-1.00%": 32.98,
+      "-2.00%": 31.79
+    },
+    "+0.50%": {
+      "0.00%": 32.91,
+      "+1.00%": 34.36,
+      "+2.00%": 36.07,
+      "-1.00%": 31.66,
+      "-2.00%": 30.59
+    },
+    "+1.00%": {
+      "0.00%": 31.57,
+      "+1.00%": 32.88,
+      "+2.00%": 34.41,
+      "-1.00%": 30.45,
+      "-2.00%": 29.47
+    },
+    "-0.50%": {
+      "0.00%": 35.92,
+      "+1.00%": 37.74,
+      "+2.00%": 39.91,
+      "-1.00%": 34.39,
+      "-2.00%": 33.08
+    },
+    "-1.00%": {
+      "0.00%": 37.63,
+      "+1.00%": 39.67,
+      "+2.00%": 42.14,
+      "-1.00%": 35.92,
+      "-2.00%": 34.47
+    }
+  },
+  "breakdown": {
+    "wacc": 0.149728,
+    "netDebt": 807000000.00,
+    "sumPvFcfs": 534909383394,
+    "terminalValue": 300835737481
+  },
+  "lastUpdated": "2026-04-07T23:32:40.911753"
+}
