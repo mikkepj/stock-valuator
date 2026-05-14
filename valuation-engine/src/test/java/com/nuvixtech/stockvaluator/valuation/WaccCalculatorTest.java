@@ -146,6 +146,104 @@ class WaccCalculatorTest {
     }
 
     @Test
+    void calculate_effectiveTaxRate_usesRealRateWhenAvailable() {
+        // NVDA FY2024: incomeTaxExpense=2.7B, ebitda≈27B, interestExpense≈0.3B
+        // pretaxIncome ≈ ebitda - interestExpense = 26.7B
+        // taxRate efectiva = 2.7B / 26.7B ≈ 10.1% (muy por debajo del 21% fijo)
+        // Con Kd menor (menos tax shield a 21%), el WACC resultante debe ser distinto
+        var financialsLowTax = new CompanyFinancials(
+                "NVDA",
+                List.of(new BigDecimal("40000000000")),
+                new BigDecimal("10000000000"),   // totalDebt
+                new BigDecimal("5000000000"),    // cash
+                new BigDecimal("50000000000"),   // totalEquity
+                new BigDecimal("300000000"),     // interestExpense
+                new BigDecimal("2700000000"),    // incomeTaxExpense (tasa efectiva ~10%)
+                new BigDecimal("1.5"),           // beta
+                2000000000L,
+                new BigDecimal("27000000000"),   // ebitda
+                BigDecimal.ZERO,
+                List.of()
+        );
+        var financialsHighTax = new CompanyFinancials(
+                "NVDA_HIGH",
+                List.of(new BigDecimal("40000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("300000000"),
+                new BigDecimal("7000000000"),    // incomeTaxExpense (tasa efectiva ~26%)
+                new BigDecimal("1.5"),
+                2000000000L,
+                new BigDecimal("27000000000"),   // mismo ebitda
+                BigDecimal.ZERO,
+                List.of()
+        );
+
+        var waccLowTax = calculator.calculate(financialsLowTax, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+        var waccHighTax = calculator.calculate(financialsHighTax, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        // Mayor tasa efectiva → mayor tax shield → Kd menor → WACC menor
+        assertTrue(waccHighTax.compareTo(waccLowTax) < 0,
+                "Mayor tasa impositiva efectiva debe producir WACC menor (más tax shield). " +
+                "lowTax=" + waccLowTax + " highTax=" + waccHighTax);
+    }
+
+    @Test
+    void calculate_effectiveTaxRate_fallsBackTo21WhenOutOfRange() {
+        // incomeTaxExpense > pretaxIncome → tasa calculada > 100%, usar fallback 21%
+        // También: ebitda - interestExpense <= 0 → pretaxIncome inválido, usar 21%
+        var financialsNegativePretax = new CompanyFinancials(
+                "TEST_NEGATIVE",
+                List.of(new BigDecimal("5000000000")),
+                new BigDecimal("20000000000"),
+                new BigDecimal("2000000000"),
+                new BigDecimal("10000000000"),
+                new BigDecimal("8000000000"),    // interestExpense > ebitda → pretaxIncome negativo
+                new BigDecimal("1000000000"),
+                new BigDecimal("1.0"),
+                500000000L,
+                new BigDecimal("5000000000"),    // ebitda < interestExpense
+                BigDecimal.ZERO,
+                List.of()
+        );
+
+        // No debe lanzar excepción; debe retornar WACC válido usando fallback 21%
+        var wacc = calculator.calculate(financialsNegativePretax, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        assertNotNull(wacc);
+        assertTrue(wacc.compareTo(BigDecimal.ZERO) > 0,
+                "WACC debe ser positivo incluso con pretaxIncome negativo, fue: " + wacc);
+    }
+
+    @Test
+    void calculate_effectiveTaxRate_capsAt50Percent() {
+        // Si el ratio incomeTaxExpense/pretaxIncome > 50%, usar fallback 21%
+        // (indica anomalía contable, no tasa real)
+        var financialsAnomalousTax = new CompanyFinancials(
+                "TEST_CAP",
+                List.of(new BigDecimal("5000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("1000000000"),
+                new BigDecimal("20000000000"),
+                new BigDecimal("500000000"),
+                new BigDecimal("9000000000"),    // impuesto = 9B sobre pretax ≈ 9.5B → >50%
+                new BigDecimal("1.0"),
+                500000000L,
+                new BigDecimal("10000000000"),   // ebitda
+                BigDecimal.ZERO,
+                List.of()
+        );
+
+        // Debe retornar WACC válido usando el fallback
+        var wacc = calculator.calculate(financialsAnomalousTax, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        assertNotNull(wacc);
+        assertTrue(wacc.compareTo(BigDecimal.ZERO) > 0,
+                "WACC debe ser positivo con tasa anomalía, fue: " + wacc);
+    }
+
+    @Test
     void calculate_nullFinancials_throwsException() {
         assertThrows(NullPointerException.class,
                 () -> calculator.calculate(null, RISK_FREE_RATE, MARKET_RISK_PREMIUM));

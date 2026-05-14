@@ -71,7 +71,9 @@ public class DcfCalculator {
         Verdict verdict = ValuationResult.calculateVerdict(marginOfSafety);
 
         // 8. Construir breakdown para transparencia
-        Map<String, BigDecimal> breakdown = buildBreakdown(sumPvFcfs, pvTerminalValue, netDebt, wacc);
+        BigDecimal effectiveTaxRate = waccCalculator.calculateEffectiveTaxRate(
+                financials.incomeTaxExpense(), financials.ebitda(), financials.interestExpense());
+        Map<String, BigDecimal> breakdown = buildBreakdown(sumPvFcfs, pvTerminalValue, netDebt, wacc, effectiveTaxRate);
 
         return new ValuationResult(
                 financials.ticker(),
@@ -102,12 +104,14 @@ public class DcfCalculator {
     }
 
     private Map<String, BigDecimal> buildBreakdown(BigDecimal sumPvFcfs, BigDecimal terminalValue,
-                                                    BigDecimal netDebt, BigDecimal wacc) {
+                                                    BigDecimal netDebt, BigDecimal wacc,
+                                                    BigDecimal effectiveTaxRate) {
         Map<String, BigDecimal> breakdown = new LinkedHashMap<>();
         breakdown.put("sumPvFcfs", sumPvFcfs);
         breakdown.put("terminalValue", terminalValue);
         breakdown.put("netDebt", netDebt);
         breakdown.put("wacc", wacc.setScale(6, RoundingMode.HALF_UP));
+        breakdown.put("effectiveTaxRate", effectiveTaxRate.setScale(6, RoundingMode.HALF_UP));
         return Collections.unmodifiableMap(breakdown);
     }
 }
