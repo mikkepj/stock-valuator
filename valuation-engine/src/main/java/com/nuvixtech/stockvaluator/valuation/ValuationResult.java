@@ -22,7 +22,9 @@ public record ValuationResult(
         BigDecimal netDebt,
         List<ProjectedFcf> projectedFcfs,
         Map<String, Map<String, BigDecimal>> sensitivityMatrix,
-        Map<String, BigDecimal> breakdown
+        Map<String, BigDecimal> breakdown,
+        MonteCarloResult monteCarloResult, // null si no se ejecutó simulación
+        int qualityScore                   // 0–100
 ) {
     public ValuationResult {
         Objects.requireNonNull(ticker, "ticker no puede ser null");
@@ -37,6 +39,7 @@ public record ValuationResult(
         Objects.requireNonNull(projectedFcfs, "projectedFcfs no puede ser null");
         Objects.requireNonNull(sensitivityMatrix, "sensitivityMatrix no puede ser null");
         Objects.requireNonNull(breakdown, "breakdown no puede ser null");
+        // monteCarloResult puede ser null (campo opcional)
 
         projectedFcfs = List.copyOf(projectedFcfs);
     }

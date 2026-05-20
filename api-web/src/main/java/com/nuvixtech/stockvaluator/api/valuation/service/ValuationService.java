@@ -15,6 +15,7 @@ import com.nuvixtech.stockvaluator.ingestion.service.FinancialDataService;
 import com.nuvixtech.stockvaluator.valuation.CompanyFinancials;
 import com.nuvixtech.stockvaluator.valuation.DcfCalculator;
 import com.nuvixtech.stockvaluator.valuation.DcfParameters;
+import com.nuvixtech.stockvaluator.valuation.MonteCarloAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.ScenarioAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.SensitivityAnalyzer;
 import org.slf4j.Logger;
@@ -42,6 +43,7 @@ public class ValuationService {
     private final DcfCalculator dcfCalculator;
     private final SensitivityAnalyzer sensitivityAnalyzer;
     private final ScenarioAnalyzer scenarioAnalyzer;
+    private final MonteCarloAnalyzer monteCarloAnalyzer;
     private final ValuationMapper mapper;
 
     private final BigDecimal riskFreeRate;
@@ -59,6 +61,7 @@ public class ValuationService {
             DcfCalculator dcfCalculator,
             SensitivityAnalyzer sensitivityAnalyzer,
             ScenarioAnalyzer scenarioAnalyzer,
+            MonteCarloAnalyzer monteCarloAnalyzer,
             ValuationMapper mapper,
             @Value("${stockvaluator.dcf.risk-free-rate:0.045}") BigDecimal riskFreeRate,
             @Value("${stockvaluator.dcf.market-risk-premium:0.045}") BigDecimal marketRiskPremium,
@@ -73,6 +76,7 @@ public class ValuationService {
         this.dcfCalculator = dcfCalculator;
         this.sensitivityAnalyzer = sensitivityAnalyzer;
         this.scenarioAnalyzer = scenarioAnalyzer;
+        this.monteCarloAnalyzer = monteCarloAnalyzer;
         this.mapper = mapper;
         this.riskFreeRate = riskFreeRate;
         this.marketRiskPremium = marketRiskPremium;
@@ -123,23 +127,27 @@ public class ValuationService {
         var marketData = marketDataRepository.findTopByCompanyTickerOrderByFetchedAtDesc(t)
                 .orElseThrow(() -> new InsufficientDataException(t, "sin datos de mercado"));
 
-        var financials = buildCompanyFinancials(t, marketData, betaOverride);
+        var financials = buildCompanyFinancials(t, marketData, betaOverride, company);
 
-        var params = new DcfParameters(
-                riskFreeRate, marketRiskPremium, terminalGrowthRate,
-                projectionYears, marketData.getPrice()
-        );
+        // Usar parámetros sectoriales si el sector está disponible; si no, los defaults configurados
+        var params = (company.getSector() != null)
+                ? com.nuvixtech.stockvaluator.valuation.SectorDefaults.forSector(
+                        company.getSector(), marketData.getPrice())
+                : new DcfParameters(riskFreeRate, marketRiskPremium, terminalGrowthRate,
+                        projectionYears, marketData.getPrice());
 
         var result = dcfCalculator.calculate(financials, params);
         var sensitivityMatrix = sensitivityAnalyzer.analyze(financials, params, dcfCalculator);
         var scenarios = scenarioAnalyzer.analyze(financials, params);
+        var monteCarlo = monteCarloAnalyzer.analyze(financials, params, 1000);
 
-        // Reconstruir result con la sensitivity matrix completa
+        // Reconstruir result con la sensitivity matrix, Monte Carlo y quality score completos
         var resultWithSensitivity = new com.nuvixtech.stockvaluator.valuation.ValuationResult(
                 result.ticker(), result.intrinsicValuePerShare(), result.marketPrice(),
                 result.marginOfSafety(), result.verdict(), result.wacc(),
                 result.terminalGrowthRate(), result.projectionYears(), result.terminalValue(),
-                result.netDebt(), result.projectedFcfs(), sensitivityMatrix, result.breakdown()
+                result.netDebt(), result.projectedFcfs(), sensitivityMatrix, result.breakdown(),
+                monteCarlo, result.qualityScore()
         );
 
         var entity = mapper.toEntity(resultWithSensitivity, scenarios, company, financials.beta());
@@ -157,7 +165,8 @@ public class ValuationService {
      */
     private CompanyFinancials buildCompanyFinancials(String ticker,
             com.nuvixtech.stockvaluator.ingestion.entity.MarketData marketData,
-            BigDecimal betaOverride) {
+            BigDecimal betaOverride,
+            com.nuvixtech.stockvaluator.ingestion.entity.Company company) {
         var cashFlows = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
                 ticker, StatementType.CASHFLOW);
         var balances = statementRepository.findByCompanyTickerAndStatementTypeOrderByFiscalYearDesc(
@@ -235,6 +244,11 @@ public class ValuationService {
                 ? marketData.getMarketCap()
                 : marketData.getPrice().multiply(BigDecimal.valueOf(shares));
 
+        BigDecimal operatingLeases = safeValue(latestBalance, FinancialStatement::getOperatingLeaseObligations);
+        BigDecimal pensionLiabilities = safeValue(latestBalance, FinancialStatement::getPensionLiabilities);
+        BigDecimal minorityInterest   = safeValue(latestBalance, FinancialStatement::getMinorityInterest);
+        BigDecimal capex = safeValue(latestCashFlow, FinancialStatement::getCapitalExpenditure);
+
         return new CompanyFinancials(
                 ticker,
                 historicalFcf,
@@ -247,7 +261,12 @@ public class ValuationService {
                 shares,
                 safeValue(latestIncome != null ? latestIncome : latestCashFlow, FinancialStatement::getEbitda),
                 marketCap,
-                analystFcfEstimates
+                analystFcfEstimates,
+                company.getSector(),
+                operatingLeases,
+                pensionLiabilities,
+                minorityInterest,
+                capex
         );
     }
 

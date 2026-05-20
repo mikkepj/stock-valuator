@@ -185,7 +185,8 @@ public class ScenarioAnalyzer {
                 financials.sharesOutstanding(),
                 financials.ebitda(),
                 financials.marketCap(),
-                newEstimates
+                newEstimates,
+                financials.sector()
         );
     }
 
@@ -220,7 +221,8 @@ public class ScenarioAnalyzer {
                 financials.sharesOutstanding(),
                 financials.ebitda(),
                 financials.marketCap(),
-                List.of()
+                List.of(),
+                financials.sector()
         );
     }
 

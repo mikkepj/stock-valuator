@@ -42,7 +42,8 @@ class ScenarioAnalyzerTest {
                 7433000000L,
                 new BigDecimal("140000000000"),
                 new BigDecimal("2780000000000"),
-                List.of()
+                List.of(),
+                null
         );
 
         baseParams = new DcfParameters(

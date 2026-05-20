@@ -266,4 +266,121 @@ class FreeCashFlowProjectorTest {
             assertEquals(i + 1, result.get(i).year(), "Año debe ser " + (i + 1));
         }
     }
+
+    // --- Tests para Mejora 5: Proyección ROIC en dos etapas ---
+
+    @Test
+    void projectWithRoic_phase1UsesRoicGrowth() {
+        // NOPAT = ebitda * (1 - taxRate) = 100B * (1 - 0.25) = 75B
+        // investedCapital = totalDebt + totalEquity - cash = 200B + 300B - 50B = 450B
+        // ROIC = 75B / 450B ≈ 16.67%
+        // reinvestmentRate = capex / NOPAT = 30B / 75B = 40%
+        // growthPhase1 = ROIC × reinvestmentRate ≈ 16.67% × 40% ≈ 6.67%
+        var historicalFcf = List.of(
+                new BigDecimal("70000000000"),
+                new BigDecimal("75000000000"),
+                new BigDecimal("80000000000")
+        );
+        var financials = new CompanyFinancials(
+                "TEST", historicalFcf,
+                new BigDecimal("200000000000"),  // totalDebt
+                new BigDecimal("50000000000"),   // cash
+                new BigDecimal("300000000000"),  // totalEquity
+                new BigDecimal("5000000000"),    // interestExpense
+                new BigDecimal("25000000000"),   // incomeTaxExpense (tax rate = 25%)
+                BigDecimal.ONE,                  // beta
+                10_000_000_000L,                 // shares
+                new BigDecimal("100000000000"),  // ebitda
+                new BigDecimal("500000000000"),  // marketCap
+                List.of(),                       // analystEstimates
+                "Technology",                    // sector
+                null, null, null,                // optional debt fields
+                new BigDecimal("30000000000")    // capitalExpenditure
+        );
+        var terminalRate = new BigDecimal("0.025");
+
+        var result = projector.projectWithRoic(historicalFcf, financials, terminalRate, 10);
+
+        assertEquals(10, result.size());
+        // Fase 1 (años 1-5): tasa derivada de ROIC × reinvestmentRate > terminal rate
+        double phase1Rate = result.get(0).growthRateApplied().doubleValue();
+        assertTrue(phase1Rate > terminalRate.doubleValue(),
+                "Fase 1 debe tener tasa mayor que terminal. Fue: " + phase1Rate);
+        // La tasa de la fase 1 debe estar en el rango razonable para ROIC-based growth (~4-25%)
+        assertTrue(phase1Rate > 0.03 && phase1Rate < 0.30,
+                "growthRate de fase 1 debe estar en rango razonable [3%, 30%]. Fue: " + phase1Rate);
+    }
+
+    @Test
+    void projectWithRoic_phase2DecaysToTerminalRate() {
+        var historicalFcf = List.of(
+                new BigDecimal("70000000000"),
+                new BigDecimal("80000000000")
+        );
+        var financials = new CompanyFinancials(
+                "TEST", historicalFcf,
+                new BigDecimal("200000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("300000000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("25000000000"),
+                BigDecimal.ONE,
+                10_000_000_000L,
+                new BigDecimal("100000000000"),
+                new BigDecimal("500000000000"),
+                List.of(),
+                "Technology",
+                null, null, null,
+                new BigDecimal("30000000000")
+        );
+        var terminalRate = new BigDecimal("0.025");
+
+        var result = projector.projectWithRoic(historicalFcf, financials, terminalRate, 10);
+
+        // El último año (año 10) debe usar exactamente la tasa terminal
+        assertEquals(0, result.get(9).growthRateApplied().compareTo(terminalRate),
+                "El año 10 debe usar la tasa terminal. Fue: " + result.get(9).growthRateApplied());
+
+        // La tasa del año 5 debe ser menor que la del año 1 (decaimiento)
+        double rate1 = result.get(0).growthRateApplied().doubleValue();
+        double rate5 = result.get(4).growthRateApplied().doubleValue();
+        assertTrue(rate1 >= rate5,
+                "La tasa debe decaer: año1=" + rate1 + " >= año5=" + rate5);
+    }
+
+    @Test
+    void projectWithRoic_fallbackWhenRoicDataMissing() {
+        // Si capitalExpenditure es null (no disponible), debe comportarse igual que project()
+        var historicalFcf = List.of(
+                new BigDecimal("80000000000"),
+                new BigDecimal("100000000000")
+        );
+        var financials = new CompanyFinancials(
+                "TEST", historicalFcf,
+                new BigDecimal("100000000000"),
+                new BigDecimal("20000000000"),
+                new BigDecimal("200000000000"),
+                new BigDecimal("3000000000"),
+                new BigDecimal("15000000000"),
+                BigDecimal.ONE,
+                5_000_000_000L,
+                new BigDecimal("50000000000"),
+                new BigDecimal("300000000000"),
+                List.of(),
+                null,
+                null, null, null,
+                null  // capitalExpenditure = null → fallback
+        );
+        var terminalRate = new BigDecimal("0.025");
+
+        var withRoic   = projector.projectWithRoic(historicalFcf, financials, terminalRate, 10);
+        var withoutRoic = projector.project(historicalFcf, terminalRate, 10);
+
+        // Ambas proyecciones deben producir los mismos valores
+        for (int i = 0; i < 10; i++) {
+            assertEquals(0,
+                    withRoic.get(i).projectedValue().compareTo(withoutRoic.get(i).projectedValue()),
+                    "Año " + (i + 1) + " debe coincidir con proyección sin ROIC");
+        }
+    }
 }

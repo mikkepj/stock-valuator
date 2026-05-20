@@ -97,4 +97,68 @@ class TerminalValueCalculatorTest {
                 () -> calculator.calculate(new BigDecimal("100000000000"),
                         new BigDecimal("0.09"), new BigDecimal("0.025"), 0));
     }
+
+    // --- Mejora 7: Exit Multiple ---
+
+    @Test
+    void calculateExitMultiple_technologySector_usesCorrectMultiple() {
+        // EBITDA año 10 = 100B, sector Technology → múltiplo 20x
+        // TV_exit = 100B × 20 = 2000B
+        // PV(TV_exit) = 2000B / (1.09)^10 ≈ 845B
+        var ebitdaLastYear = new BigDecimal("100000000000");
+        var wacc = new BigDecimal("0.09");
+        int projectionYears = 10;
+
+        var pvExitMultiple = calculator.calculateExitMultiple(ebitdaLastYear, wacc, "Technology", projectionYears);
+
+        assertNotNull(pvExitMultiple);
+        assertTrue(pvExitMultiple.compareTo(BigDecimal.ZERO) > 0,
+                "PV exit multiple debe ser positivo");
+        // 2000B / (1.09)^10 ≈ 845B — rango amplio
+        assertTrue(pvExitMultiple.compareTo(new BigDecimal("600000000000")) > 0,
+                "PV exit multiple Technology debe ser > 600B, fue: " + pvExitMultiple);
+        assertTrue(pvExitMultiple.compareTo(new BigDecimal("1100000000000")) < 0,
+                "PV exit multiple Technology debe ser < 1100B, fue: " + pvExitMultiple);
+    }
+
+    @Test
+    void calculateExitMultiple_defaultSectorWhenUnknown_usesDefaultMultiple() {
+        // Sector desconocido → múltiplo default 14x
+        var ebitda = new BigDecimal("50000000000");
+        var wacc = new BigDecimal("0.09");
+
+        var pvUnknown = calculator.calculateExitMultiple(ebitda, wacc, "UnknownSector", 10);
+        var pvDefault = calculator.calculateExitMultiple(ebitda, wacc, "Default", 10);
+
+        // Ambos deben producir el mismo valor (mismo múltiplo 14x)
+        assertEquals(0, pvUnknown.compareTo(pvDefault),
+                "Sector desconocido debe usar el mismo múltiplo que Default");
+    }
+
+    @Test
+    void calculateExitMultiple_energySector_lowerThanTechnology() {
+        // Energy → 8x vs Technology → 20x; mismo EBITDA → Energy debe dar TV menor
+        var ebitda = new BigDecimal("100000000000");
+        var wacc = new BigDecimal("0.09");
+        int years = 10;
+
+        var pvTech = calculator.calculateExitMultiple(ebitda, wacc, "Technology", years);
+        var pvEnergy = calculator.calculateExitMultiple(ebitda, wacc, "Energy", years);
+
+        assertTrue(pvTech.compareTo(pvEnergy) > 0,
+                "Technology (20x) debe producir TV mayor que Energy (8x). " +
+                "tech=" + pvTech + " energy=" + pvEnergy);
+    }
+
+    @Test
+    void calculateExitMultiple_nullSector_usesDefaultMultiple() {
+        var ebitda = new BigDecimal("50000000000");
+        var wacc = new BigDecimal("0.09");
+
+        var pvNull = calculator.calculateExitMultiple(ebitda, wacc, null, 10);
+        var pvDefault = calculator.calculateExitMultiple(ebitda, wacc, "Default", 10);
+
+        assertEquals(0, pvNull.compareTo(pvDefault),
+                "Sector null debe usar múltiplo default");
+    }
 }

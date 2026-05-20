@@ -60,7 +60,47 @@
       "Bash(mvn spring-boot:run -q)",
       "Bash(curl -s \"http://localhost:8080/api/v1/valuation/NVDA\")",
       "Bash(python -m json.tool)",
-      "Bash(git commit -m ' *)"
+      "Bash(git commit -m ' *)",
+      "Bash(git pull *)",
+      "Bash(mvn test-compile *)",
+      "Bash(mkdir -p \"C:/workspaces/intellij/stock-valuator/.claude/commands\")",
+      "Bash(mkdir -p \"C:/workspaces/intellij/stock-valuator/.claude/agents\")",
+      "Bash(Test-Path *)",
+      "PowerShell(psql *)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash(git commit*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -File .claude/hooks/pre-commit-check.ps1"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -File .claude/hooks/post-edit-java.ps1"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell -File .claude/hooks/on-stop.ps1"
+          }
+        ]
+      }
     ]
   }
 }

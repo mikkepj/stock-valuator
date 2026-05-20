@@ -136,6 +136,121 @@ public class FreeCashFlowProjector {
     }
 
     /**
+     * Proyecta FCFs en dos etapas usando ROIC × reinvestmentRate.
+     *
+     * <p>Fase 1 (años 1-5): tasa = ROIC × reinvestmentRate, donde:
+     *   NOPAT = ebitda × (1 - taxRate);
+     *   investedCapital = totalDebt + totalEquity - cash;
+     *   ROIC = NOPAT / investedCapital;
+     *   reinvestmentRate = capex / NOPAT.
+     *
+     * <p>Fase 2 (años 6-N): decay lineal desde la tasa de fase 1 hasta terminalGrowthRate.
+     *
+     * <p>Si capitalExpenditure o los datos necesarios para ROIC no están disponibles,
+     * delega a {@link #project(List, BigDecimal, int)} como fallback.
+     *
+     * @param historicalFcf     FCFs históricos en orden ascendente
+     * @param financials        datos financieros con campos opcionales de CapEx
+     * @param terminalGrowthRate tasa de crecimiento terminal
+     * @param projectionYears   número total de años a proyectar
+     * @return lista de FCFs proyectados, uno por año
+     */
+    public List<ProjectedFcf> projectWithRoic(List<BigDecimal> historicalFcf,
+                                               CompanyFinancials financials,
+                                               BigDecimal terminalGrowthRate,
+                                               int projectionYears) {
+        Objects.requireNonNull(historicalFcf, "historicalFcf no puede ser null");
+        Objects.requireNonNull(financials, "financials no puede ser null");
+        Objects.requireNonNull(terminalGrowthRate, "terminalGrowthRate no puede ser null");
+        if (projectionYears <= 0) {
+            throw new IllegalArgumentException("projectionYears debe ser mayor que cero");
+        }
+
+        BigDecimal capex = financials.capitalExpenditure();
+        BigDecimal ebitda = financials.ebitda();
+        BigDecimal incomeTax = financials.incomeTaxExpense();
+        BigDecimal interestExp = financials.interestExpense();
+        BigDecimal totalDebt = financials.totalDebt();
+        BigDecimal totalEquity = financials.totalEquity();
+        BigDecimal cash = financials.cashAndEquivalents();
+
+        // Fallback si CapEx no está disponible o es cero
+        if (capex == null || capex.compareTo(BigDecimal.ZERO) == 0
+                || ebitda == null || ebitda.compareTo(BigDecimal.ZERO) <= 0) {
+            return project(historicalFcf, terminalGrowthRate, projectionYears);
+        }
+
+        // taxRate efectiva: incomeTax / (ebitda - interestExp); clamped [0, 0.40]
+        BigDecimal taxableBase = ebitda.subtract(interestExp, MC);
+        BigDecimal taxRate;
+        if (taxableBase.compareTo(BigDecimal.ZERO) <= 0 || incomeTax.compareTo(BigDecimal.ZERO) <= 0) {
+            taxRate = new BigDecimal("0.25");  // default razonable
+        } else {
+            taxRate = incomeTax.divide(taxableBase, MC)
+                    .max(BigDecimal.ZERO)
+                    .min(new BigDecimal("0.40"));
+        }
+
+        // NOPAT = ebitda × (1 - taxRate)
+        BigDecimal nopat = ebitda.multiply(BigDecimal.ONE.subtract(taxRate, MC), MC);
+
+        // investedCapital = totalDebt + totalEquity - cash
+        BigDecimal investedCapital = totalDebt.add(totalEquity, MC).subtract(cash, MC);
+
+        // ROIC = NOPAT / investedCapital; fallback a project() si no es calculable
+        if (investedCapital.compareTo(BigDecimal.ZERO) <= 0 || nopat.compareTo(BigDecimal.ZERO) <= 0) {
+            return project(historicalFcf, terminalGrowthRate, projectionYears);
+        }
+        BigDecimal roic = nopat.divide(investedCapital, MC);
+
+        // reinvestmentRate = capex / NOPAT; clamped [0, 1]
+        BigDecimal reinvestmentRate = capex.divide(nopat, MC)
+                .max(BigDecimal.ZERO)
+                .min(BigDecimal.ONE);
+
+        // growthPhase1 = ROIC × reinvestmentRate; piso: terminalRate, techo: 30%
+        BigDecimal phase1Rate = roic.multiply(reinvestmentRate, MC)
+                .max(terminalGrowthRate)
+                .min(MAX_INITIAL_GROWTH_RATE);
+
+        // Proyectar con decay en dos etapas
+        int phase1Years = Math.min(5, projectionYears);
+        int phase2Years = projectionYears - phase1Years;
+
+        List<ProjectedFcf> projections = new ArrayList<>(projectionYears);
+        BigDecimal currentFcf = lastPositiveFcf(historicalFcf);
+
+        // Fase 1: tasa constante derivada de ROIC
+        for (int year = 1; year <= phase1Years; year++) {
+            currentFcf = currentFcf.multiply(BigDecimal.ONE.add(phase1Rate, MC), MC)
+                    .setScale(0, RoundingMode.HALF_UP);
+            projections.add(new ProjectedFcf(year, currentFcf,
+                    phase1Rate.setScale(SCALE, RoundingMode.HALF_UP)));
+        }
+
+        if (phase2Years == 0) {
+            // Forzar tasa terminal en el último año de fase 1 para consistencia
+            var last = projections.get(projections.size() - 1);
+            projections.set(projections.size() - 1,
+                    new ProjectedFcf(last.year(), last.projectedValue(),
+                            terminalGrowthRate.setScale(SCALE, RoundingMode.HALF_UP)));
+            return projections;
+        }
+
+        // Fase 2: decay lineal desde phase1Rate hasta terminalGrowthRate
+        for (int i = 1; i <= phase2Years; i++) {
+            int year = phase1Years + i;
+            BigDecimal growthRate = interpolateRate(phase1Rate, terminalGrowthRate, i, phase2Years);
+            currentFcf = currentFcf.multiply(BigDecimal.ONE.add(growthRate, MC), MC)
+                    .setScale(0, RoundingMode.HALF_UP);
+            projections.add(new ProjectedFcf(year, currentFcf,
+                    growthRate.setScale(SCALE, RoundingMode.HALF_UP)));
+        }
+
+        return projections;
+    }
+
+    /**
      * Calcula el CAGR sobre todos los datos históricos como tasa de arranque.
      * Si hay un solo dato, retorna la tasa terminal.
      */

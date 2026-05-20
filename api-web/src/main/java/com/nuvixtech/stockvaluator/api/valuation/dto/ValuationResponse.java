@@ -22,5 +22,7 @@ public record ValuationResponse(
         List<ScenarioResultDto> scenarios,
         Map<String, Map<String, BigDecimal>> sensitivityMatrix,
         Map<String, BigDecimal> breakdown,
+        Map<String, Object> monteCarlo,
+        Integer qualityScore,
         LocalDateTime lastUpdated
 ) {}

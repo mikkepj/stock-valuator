@@ -6,11 +6,30 @@ import java.math.RoundingMode;
 import java.util.Objects;
 
 /**
- * Calcula el Valor Terminal usando el Gordon Growth Model y lo descuenta al presente.
+ * Calcula el Valor Terminal usando Gordon Growth Model y/o Exit Multiple sectorial.
  */
 public class TerminalValueCalculator {
 
     private static final MathContext MC = MathContext.DECIMAL128;
+
+    // EV/EBITDA de salida por sector (Damodaran industry multiples)
+    private static final java.util.Map<String, Integer> SECTOR_EXIT_MULTIPLES =
+            java.util.Map.ofEntries(
+                    java.util.Map.entry("Technology",          20),
+                    java.util.Map.entry("Semiconductors",      18),
+                    java.util.Map.entry("Software",            25),
+                    java.util.Map.entry("Healthcare",          15),
+                    java.util.Map.entry("Consumer Defensive",  14),
+                    java.util.Map.entry("Consumer Cyclical",   13),
+                    java.util.Map.entry("Energy",               8),
+                    java.util.Map.entry("Financials",          12),
+                    java.util.Map.entry("Industrials",         12),
+                    java.util.Map.entry("Utilities",           10),
+                    java.util.Map.entry("Real Estate",         18),
+                    java.util.Map.entry("Communication",       14),
+                    java.util.Map.entry("Materials",           10),
+                    java.util.Map.entry("Default",             14)
+            );
 
     /**
      * Calcula el valor presente del Terminal Value.
@@ -52,5 +71,40 @@ public class TerminalValueCalculator {
 
         return terminalValue.divide(discountFactor, MC)
                 .setScale(0, RoundingMode.HALF_UP);
+    }
+
+    /**
+     * Calcula el valor presente del Terminal Value usando Exit Multiple sectorial.
+     *
+     * <p>Fórmula: TV = EBITDA_N × sectorMultiple; PV(TV) = TV / (1 + WACC)^N
+     *
+     * @param ebitdaLastYear EBITDA proyectado del último año de proyección
+     * @param wacc           costo ponderado de capital
+     * @param sector         sector de la empresa (ej: "Technology", "Energy")
+     * @param projectionYears número de años de proyección
+     * @return valor presente del Terminal Value por exit multiple
+     */
+    public BigDecimal calculateExitMultiple(BigDecimal ebitdaLastYear, BigDecimal wacc,
+                                            String sector, int projectionYears) {
+        Objects.requireNonNull(ebitdaLastYear, "ebitdaLastYear no puede ser null");
+        Objects.requireNonNull(wacc, "wacc no puede ser null");
+        if (projectionYears <= 0) {
+            throw new IllegalArgumentException("projectionYears debe ser mayor que cero");
+        }
+
+        int multiple = SECTOR_EXIT_MULTIPLES.getOrDefault(
+                sector != null ? sector : "Default", SECTOR_EXIT_MULTIPLES.get("Default"));
+
+        BigDecimal terminalValue = ebitdaLastYear.multiply(BigDecimal.valueOf(multiple), MC);
+        BigDecimal discountFactor = BigDecimal.ONE.add(wacc, MC).pow(projectionYears, MC);
+
+        return terminalValue.divide(discountFactor, MC)
+                .setScale(0, RoundingMode.HALF_UP);
+    }
+
+    /** Retorna el múltiplo EV/EBITDA de salida para un sector dado. */
+    public int getExitMultipleForSector(String sector) {
+        return SECTOR_EXIT_MULTIPLES.getOrDefault(
+                sector != null ? sector : "Default", SECTOR_EXIT_MULTIPLES.get("Default"));
     }
 }
