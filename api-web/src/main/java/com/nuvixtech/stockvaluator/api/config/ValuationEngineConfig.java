@@ -2,6 +2,8 @@ package com.nuvixtech.stockvaluator.api.config;
 
 import com.nuvixtech.stockvaluator.valuation.DcfCalculator;
 import com.nuvixtech.stockvaluator.valuation.FreeCashFlowProjector;
+import com.nuvixtech.stockvaluator.valuation.MonteCarloAnalyzer;
+import com.nuvixtech.stockvaluator.valuation.QualityScoreCalculator;
 import com.nuvixtech.stockvaluator.valuation.ScenarioAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.SensitivityAnalyzer;
 import com.nuvixtech.stockvaluator.valuation.TerminalValueCalculator;
@@ -32,10 +34,17 @@ public class ValuationEngineConfig {
     }
 
     @Bean
+    public QualityScoreCalculator qualityScoreCalculator() {
+        return new QualityScoreCalculator();
+    }
+
+    @Bean
     public DcfCalculator dcfCalculator(FreeCashFlowProjector projector,
                                         WaccCalculator waccCalculator,
-                                        TerminalValueCalculator terminalValueCalculator) {
-        return new DcfCalculator(projector, waccCalculator, terminalValueCalculator);
+                                        TerminalValueCalculator terminalValueCalculator,
+                                        QualityScoreCalculator qualityScoreCalculator) {
+        return new DcfCalculator(projector, waccCalculator, terminalValueCalculator,
+                qualityScoreCalculator);
     }
 
     @Bean
@@ -46,5 +55,10 @@ public class ValuationEngineConfig {
     @Bean
     public ScenarioAnalyzer scenarioAnalyzer(DcfCalculator dcfCalculator) {
         return new ScenarioAnalyzer(dcfCalculator);
+    }
+
+    @Bean
+    public MonteCarloAnalyzer monteCarloAnalyzer(DcfCalculator dcfCalculator) {
+        return new MonteCarloAnalyzer(dcfCalculator);
     }
 }

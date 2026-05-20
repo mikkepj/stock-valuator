@@ -26,10 +26,10 @@
 - `valuation-engine/test/.../WaccCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `WaccCalculator_effectiveTaxRate_usesRealRateWhenAvailable`
-- [ ] **TEST** `WaccCalculator_effectiveTaxRate_fallsBackTo21WhenOutOfRange`
-- [ ] Implementar cálculo de tasa impositiva efectiva en `WaccCalculator`
-- [ ] Agregar `effectiveTaxRate` al breakdown en `DcfCalculator`
+- [x] **TEST** `WaccCalculator_effectiveTaxRate_usesRealRateWhenAvailable`
+- [x] **TEST** `WaccCalculator_effectiveTaxRate_fallsBackTo21WhenOutOfRange`
+- [x] Implementar cálculo de tasa impositiva efectiva en `WaccCalculator`
+- [x] Agregar `effectiveTaxRate` al breakdown en `DcfCalculator`
 
 ---
 
@@ -63,11 +63,11 @@
 - `valuation-engine/test/.../WaccCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `WaccCalculator_debtCost_usesSpreadForHighCoverage` (ICR>8.5 → spread 0.63%)
-- [ ] **TEST** `WaccCalculator_debtCost_usesSpreadForLowCoverage` (ICR<0.8 → spread 8.64%)
-- [ ] **TEST** `WaccCalculator_debtCost_fallbackWhenNoInterestExpense`
-- [ ] Implementar tabla de spreads Damodaran en `WaccCalculator`
-- [ ] Agregar `debtSpread` e `impliedCreditRating` al breakdown
+- [x] **TEST** `WaccCalculator_debtCost_usesSpreadForHighCoverage` (ICR>8.5 → spread 0.63%)
+- [x] **TEST** `WaccCalculator_debtCost_usesSpreadForLowCoverage` (ICR<0.8 → spread 8.64%)
+- [x] **TEST** `WaccCalculator_debtCost_fallbackWhenNoInterestExpense`
+- [x] Implementar tabla de spreads Damodaran en `WaccCalculator`
+- [x] Agregar `creditSpread` al breakdown
 
 ---
 
@@ -92,12 +92,12 @@
 - `valuation-engine/test/.../DcfCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `DcfCalculator_netDebt_includesLeasesAndPensions`
-- [ ] **TEST** `DcfCalculator_netDebt_withZeroOptionalFields_matchesBasicFormula`
-- [ ] Agregar campos opcionales a `CompanyFinancials`
-- [ ] Actualizar `DcfCalculator` para usar `adjustedNetDebt`
-- [ ] Migración Flyway `V7__add_lease_pension_to_financial_statement.sql`
-- [ ] Actualizar `buildCompanyFinancials` para leer los nuevos campos
+- [x] **TEST** `DcfCalculator_netDebt_includesLeasesAndPensions`
+- [x] **TEST** `DcfCalculator_netDebt_withZeroOptionalFields_matchesBasicFormula`
+- [x] Agregar campos opcionales a `CompanyFinancials` (con constructor de conveniencia de 13 args)
+- [x] Actualizar `DcfCalculator` para usar `adjustedNetDebt()`
+- [x] Migración Flyway `V7__add_adjusted_debt_fields_to_financial_statement.sql`
+- [x] Actualizar `buildCompanyFinancials` para leer los nuevos campos
 
 ---
 
@@ -123,16 +123,16 @@
 - `valuation-engine/test/.../WaccCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `WaccCalculator_sizeRiskPremium_zeroForMegaCap`
-- [ ] **TEST** `WaccCalculator_sizeRiskPremium_appliedForSmallCap`
-- [ ] Implementar tabla de primas de tamaño en `WaccCalculator`
-- [ ] Agregar `sizeRiskPremium` al breakdown
+- [x] **TEST** `WaccCalculator_sizeRiskPremium_zeroForMegaCap`
+- [x] **TEST** `WaccCalculator_sizeRiskPremium_appliedForSmallCap`
+- [x] Implementar tabla de primas de tamaño en `WaccCalculator`
+- [x] Agregar `sizeRiskPremium` al breakdown
 
 ---
 
 ## Nivel 2 — Mejora de precisión del análisis
 
-### Mejora 5 — Proyección FCF en dos etapas con ROIC/Reinvestment Rate
+### Mejora 5 — Proyección FCF en dos etapas con ROIC/Reinvestment Rate ✅
 
 **Problema actual:** Decay lineal simple de año 1 a N. No modela la dinámica inversión-crecimiento.
 **Impacto:** Empresas con alto capex (semiconductors, infrastructure) crecen porque reinvierten. El modelo actual no captura esa relación.
@@ -150,22 +150,22 @@
 - `valuation-engine/test/.../FreeCashFlowProjectorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `FreeCashFlowProjector_twoStage_phase1UsesRoicGrowth`
-- [ ] **TEST** `FreeCashFlowProjector_twoStage_phase2DecaysToTerminal`
-- [ ] **TEST** `FreeCashFlowProjector_twoStage_fallbackWhenRoicDataMissing`
-- [ ] Agregar `capitalExpenditure` a `CompanyFinancials`
-- [ ] Implementar proyección de dos etapas en `FreeCashFlowProjector`
+- [x] **TEST** `FreeCashFlowProjector_twoStage_phase1UsesRoicGrowth`
+- [x] **TEST** `FreeCashFlowProjector_twoStage_phase2DecaysToTerminal`
+- [x] **TEST** `FreeCashFlowProjector_twoStage_fallbackWhenRoicDataMissing`
+- [x] Agregar `capitalExpenditure` a `CompanyFinancials`
+- [x] Implementar proyección de dos etapas en `FreeCashFlowProjector`
 
 ---
 
-### Mejora 6 — Validador ROIC vs WACC (consistencia del crecimiento)
+### Mejora 6 — Validador ROIC vs WACC (consistencia del crecimiento) ✅
 
 **Problema actual:** El modelo proyecta crecimiento sin verificar si la empresa tiene el retorno sobre el capital para sostenerlo.
 **Impacto:** Una empresa con ROIC del 5% no puede crecer al 15% de forma sostenible sin destruir valor.
 
 **Solución:**
 - Calcular `ROIC = NOPAT / investedCapital` con los datos disponibles
-- Si `projectedGrowthRate > ROIC` → agregar advertencia `"growthExceedsRoic": true` en breakdown
+- Si `avgProjectedGrowth > ROIC` → agregar advertencia `"growthExceedsRoic": 1` en breakdown
 - Calcular `maxSustainableGrowth = ROIC × reinvestmentRate` y exponerlo en breakdown
 - No bloquear el cálculo, solo agregar señales de alerta que el FE puede mostrar
 
@@ -174,10 +174,10 @@
 - `valuation-engine/test/.../DcfCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `DcfCalculator_roicWarning_setWhenGrowthExceedsRoic`
-- [ ] **TEST** `DcfCalculator_roicWarning_notSetWhenGrowthBelowRoic`
-- [ ] Implementar cálculo ROIC y advertencias en `DcfCalculator`
-- [ ] Agregar `roic`, `maxSustainableGrowth`, `growthExceedsRoic` al breakdown
+- [x] **TEST** `DcfCalculator_roicWarning_setWhenGrowthExceedsRoic`
+- [x] **TEST** `DcfCalculator_roicWarning_notSetWhenGrowthBelowRoic`
+- [x] Implementar cálculo ROIC y advertencias en `DcfCalculator`
+- [x] Agregar `roic`, `maxSustainableGrowth`, `growthExceedsRoic` al breakdown
 
 ---
 
@@ -210,18 +210,18 @@
 - `valuation-engine/test/.../TerminalValueCalculatorTest.java`
 
 **Tareas:**
-- [ ] **TEST** `TerminalValueCalculator_exitMultiple_technologySector`
-- [ ] **TEST** `TerminalValueCalculator_exitMultiple_defaultSectorWhenUnknown`
-- [ ] **TEST** `TerminalValueCalculator_exitMultiple_isLowerThanGordonForHighGrowthAssumptions`
-- [ ] Agregar `sector` a `CompanyFinancials`
-- [ ] Implementar `calculateExitMultiple()` en `TerminalValueCalculator`
-- [ ] Exponer ambos métodos en breakdown
+- [x] **TEST** `TerminalValueCalculator_exitMultiple_technologySector`
+- [x] **TEST** `TerminalValueCalculator_exitMultiple_defaultSectorWhenUnknown`
+- [x] **TEST** `TerminalValueCalculator_exitMultiple_isLowerThanGordonForHighGrowthAssumptions`
+- [x] Agregar `sector` a `CompanyFinancials`
+- [x] Implementar `calculateExitMultiple()` en `TerminalValueCalculator`
+- [x] Exponer `terminalValue` y `terminalValueExitMultiple` en breakdown
 
 ---
 
 ## Nivel 3 — Diferenciadores respecto a herramientas básicas
 
-### Mejora 8 — Parámetros por sector (Sector-Aware DCF)
+### Mejora 8 — Parámetros por sector (Sector-Aware DCF) ✅
 
 **Problema actual:** Todos los tickers usan los mismos defaults de WACC, terminal growth y MRP.
 **Impacto:** Una empresa de semiconductores y una de utilities tienen perfiles de riesgo radicalmente distintos.
@@ -229,104 +229,95 @@
 **Solución:**
 - Crear clase `SectorDefaults` en `valuation-engine` con tabla de defaults por sector:
   ```
-  Sector             | Beta Damodaran | ERP   | Terminal Growth | Exit Multiple
-  Technology         | 1.48           | 4.5%  | 3.0%            | 20x
-  Semiconductors     | 1.52           | 4.5%  | 3.0%            | 18x
-  Software (SaaS)    | 1.10           | 4.5%  | 3.5%            | 25x
-  Healthcare         | 0.89           | 4.5%  | 2.5%            | 15x
-  Consumer Defensive | 0.57           | 4.5%  | 2.0%            | 14x
-  Energy             | 1.05           | 4.5%  | 1.5%            | 8x
-  Financials         | 0.47           | 5.0%  | 2.5%            | 12x
-  Industrials        | 0.98           | 4.5%  | 2.5%            | 12x
-  Utilities          | 0.37           | 4.5%  | 2.0%            | 10x
+  Sector             | ERP   | Terminal Growth
+  Technology         | 4.5%  | 3.0%
+  Semiconductors     | 4.5%  | 3.0%
+  Software (SaaS)    | 4.5%  | 3.5%
+  Healthcare         | 4.5%  | 2.5%
+  Consumer Defensive | 4.5%  | 2.0%
+  Energy             | 4.5%  | 1.5%
+  Financials         | 5.0%  | 2.5%
+  Industrials        | 4.5%  | 2.5%
+  Utilities          | 4.5%  | 2.0%
   ```
-- `DcfParameters.forSector(String sector)` retorna parámetros ajustados para ese sector
-- Si `CompanyFinancials.sector` está disponible, `ValuationService` usa parámetros sectoriales como punto de partida
+- Si `CompanyFinancials.sector` está disponible, `ValuationService` usa parámetros sectoriales
 - El `betaOverride` del usuario sigue prevaleciendo sobre el beta sectorial
 
 **Archivos afectados:**
 - `valuation-engine/.../SectorDefaults.java` (nuevo)
-- `valuation-engine/.../DcfParameters.java`
 - `api-web/.../service/ValuationService.java`
-- `valuation-engine/test/.../SectorDefaultsTest.java` (nuevo)
+- `valuation-engine/test/.../SectorDefaultsTest.java` (nuevo, 6 tests)
 
 **Tareas:**
-- [ ] **TEST** `SectorDefaults_technologySector_returnsSectorBeta`
-- [ ] **TEST** `SectorDefaults_unknownSector_returnsGlobalDefaults`
-- [ ] **TEST** `DcfParameters_forSector_usesCorrectTerminalGrowth`
-- [ ] Crear clase `SectorDefaults`
-- [ ] Agregar factory method `DcfParameters.forSector()`
-- [ ] Actualizar `ValuationService` para usar sector si disponible
+- [x] **TEST** `SectorDefaults_technologySector_returnsSectorBeta`
+- [x] **TEST** `SectorDefaults_unknownSector_returnsGlobalDefaults`
+- [x] **TEST** `SectorDefaults_nullSector_returnsGlobalDefaults`
+- [x] Crear clase `SectorDefaults` con tabla Damodaran
+- [x] Actualizar `ValuationService` para usar `SectorDefaults.forSector()` cuando sector disponible
 
 ---
 
-### Mejora 9 — Simulación Monte Carlo sobre FCF y WACC
+### Mejora 9 — Simulación Monte Carlo sobre FCF y WACC ✅
 
 **Problema actual:** Solo 3 escenarios con multiplicadores arbitrarios (1.30x / 0.75x).
 **Impacto:** No captura la distribución real de posibles valores. Oculta la incertidumbre real del modelo.
 
 **Solución:**
 - Generar N=1000 simulaciones variando simultáneamente:
-  - `growthRate ~ Normal(μ=CAGR, σ=stdDevHistoricalFcf)`
-  - `wacc ~ Normal(μ=baseWacc, σ=0.01)` (±1% std)
+  - `growthRate ~ Normal(μ=CAGR, σ=5%)`
+  - `wacc ~ Normal(μ=baseWacc, σ=1%)`
   - `terminalGrowth ~ Uniform(1.5%, 3.5%)`
 - Calcular IV para cada simulación
 - Retornar: `p10`, `p25`, `p50`, `p75`, `p90` de la distribución resultante
-- Agregar `MonteCarloResult` record con percentiles al `ValuationResult`
-- Exponer en la API como campo adicional en `ValuationResponse`
+- `MonteCarloResult` record con percentiles en `ValuationResult`
+- Expuesto en la API como `monteCarlo` en `ValuationResponse`
 
 **Archivos afectados:**
 - `valuation-engine/.../MonteCarloAnalyzer.java` (nuevo)
 - `valuation-engine/.../MonteCarloResult.java` (nuevo record)
 - `valuation-engine/.../ValuationResult.java`
 - `api-web/.../dto/ValuationResponse.java`
-- `valuation-engine/test/.../MonteCarloAnalyzerTest.java` (nuevo)
+- `api-web/.../db/migration/V8__add_monte_carlo_to_valuation_result.sql` (nuevo)
+- `valuation-engine/test/.../MonteCarloAnalyzerTest.java` (nuevo, 9 tests)
 
 **Tareas:**
-- [ ] **TEST** `MonteCarloAnalyzer_returns1000Simulations`
-- [ ] **TEST** `MonteCarloAnalyzer_p50ApproximatesBaseScenario`
-- [ ] **TEST** `MonteCarloAnalyzer_p10AlwaysLowerThanP90`
-- [ ] Crear `MonteCarloResult` record con campos: `p10`, `p25`, `p50`, `p75`, `p90`, `simulationCount`
-- [ ] Crear `MonteCarloAnalyzer` (sin Spring, sin librerías externas — usar `java.util.Random`)
-- [ ] Agregar `monteCarloResult` a `ValuationResult`
-- [ ] Migración Flyway para persistir percentiles Monte Carlo
-- [ ] Agregar `monteCarloResult` a `ValuationResponse`
+- [x] **TEST** `MonteCarloAnalyzer_returns1000Simulations`
+- [x] **TEST** `MonteCarloAnalyzer_p50ApproximatesBaseScenario`
+- [x] **TEST** `MonteCarloAnalyzer_p10AlwaysLowerThanP90`
+- [x] Crear `MonteCarloResult` record con campos: `p10`, `p25`, `p50`, `p75`, `p90`, `simulationCount`
+- [x] Crear `MonteCarloAnalyzer` (sin Spring, sin librerías externas — usar `java.util.Random`)
+- [x] Agregar `monteCarloResult` a `ValuationResult`
+- [x] Migración Flyway V8 para persistir percentiles Monte Carlo
+- [x] Agregar `monteCarlo` a `ValuationResponse`
 
 ---
 
-### Mejora 10 — Quality Score del negocio
+### Mejora 10 — Quality Score del negocio ✅
 
 **Problema actual:** La herramienta solo produce un valor intrínseco, sin contexto sobre la calidad del negocio que lo genera.
 **Impacto:** Un IV de $150 en una empresa con FCF decreciente y deuda creciente tiene mucho menos confiabilidad que el mismo IV en una empresa con FCF creciente y sin deuda.
 
 **Solución:**
-- Calcular un `qualityScore` de 0–100 basado en 5 dimensiones (20 puntos cada una):
-
-  | Dimensión | Señal positiva (20 pts) | Señal negativa (0 pts) |
-  |-----------|------------------------|------------------------|
-  | **FCF Growth** | CAGR histórico > 10% | CAGR < 0% (FCF decreciente) |
-  | **FCF Consistency** | Todos los años FCF > 0 | Algún año FCF negativo |
-  | **ROIC vs WACC** | ROIC > WACC (value creation) | ROIC < WACC (value destruction) |
-  | **Leverage** | netDebt / ebitda < 2x | netDebt / ebitda > 4x |
-  | **Margin Trend** | FCF margin estable o creciente | FCF margin cayendo >3pp |
-
-- `qualityScore` se agrega a `ValuationResult` y `ValuationResponse`
-- El FE puede mostrar un badge de confiabilidad asociado al IV
+- Calcular un `qualityScore` de 0–100 basado en 5 dimensiones (0/10/20 puntos cada una):
+  - FCF Growth, FCF Consistency, ROIC vs WACC, Leverage, Margin Trend
+- `qualityScore` en `ValuationResult`, `ValuationResponse` y `ValuationResultEntity`
+- Flyway V9 para columna `quality_score INTEGER` en `valuation_result`
 
 **Archivos afectados:**
 - `valuation-engine/.../QualityScoreCalculator.java` (nuevo)
 - `valuation-engine/.../ValuationResult.java`
 - `api-web/.../dto/ValuationResponse.java`
-- `valuation-engine/test/.../QualityScoreCalculatorTest.java` (nuevo)
+- `api-web/.../db/migration/V9__add_quality_score_to_valuation_result.sql` (nuevo)
+- `valuation-engine/test/.../QualityScoreCalculatorTest.java` (nuevo, 8 tests)
 
 **Tareas:**
-- [ ] **TEST** `QualityScoreCalculator_perfectScore_allPositiveSignals`
-- [ ] **TEST** `QualityScoreCalculator_zeroScore_allNegativeSignals`
-- [ ] **TEST** `QualityScoreCalculator_partialScore_mixedSignals`
-- [ ] **TEST** `QualityScoreCalculator_roicDimension_requiresWaccForComparison`
-- [ ] Crear `QualityScoreCalculator`
-- [ ] Agregar `qualityScore` (int 0–100) a `ValuationResult`
-- [ ] Agregar `qualityScore` a `ValuationResponse`
+- [x] **TEST** `QualityScoreCalculator_perfectScore_allPositiveSignals`
+- [x] **TEST** `QualityScoreCalculator_zeroScore_allNegativeSignals`
+- [x] **TEST** `QualityScoreCalculator_partialScore_mixedSignals`
+- [x] **TEST** `QualityScoreCalculator_roicDimension_requiresWaccForComparison`
+- [x] Crear `QualityScoreCalculator`
+- [x] Agregar `qualityScore` (int 0–100) a `ValuationResult`
+- [x] Agregar `qualityScore` a `ValuationResponse`
 
 ---
 
@@ -354,3 +345,27 @@ Mejora 10 → Mejora 9              (quality score primero — más simple; Mont
 | Mejora 7 | Mejora 8 (exit multiples son sectoriales) |
 | Mejora 9 | Mejoras 1-4 (Monte Carlo sobre un WACC mejorado es más significativo) |
 | Mejora 10 | Mejora 6 (usa ROIC vs WACC como una dimensión del score) |
+
+---
+
+## Estado final — Validación Postman (2026-05-19)
+
+Todas las mejoras implementadas y validadas en Postman desde rama `feature/dcf-quality-improvements`.
+
+| Campo validado | Ticker | Resultado observado | Estado |
+|----------------|--------|---------------------|--------|
+| `breakdown.creditSpread` | AAPL | `0.006300` (spread AAA — ICR alto) | ✅ Correcto |
+| `breakdown.creditSpread` | XOM | spread real según ICR de Energy | ✅ Correcto |
+| `breakdown.effectiveTaxRate` | AAPL | `0.143457` (14.3% efectivo vs 21% default) | ✅ Correcto |
+| `breakdown.sizeRiskPremium` | AAPL | `0.000000` (mega cap >$100B) | ✅ Correcto |
+| `breakdown.roic` | AAPL | `0.823753` (82.4% — empresa de alta calidad) | ✅ Correcto |
+| `breakdown.terminalValueExitMultiple` | AAPL | `1,604,043,547,418` (20x Technology, PV descontado) | ✅ Correcto |
+| `breakdown.terminalValueExitMultiple` | XOM | `377,346,801,390` (8x Energy, PV descontado) | ✅ Correcto |
+| `monteCarlo.p50` | AAPL | `~136` (aproxima IV base de $146) | ✅ Correcto |
+| `qualityScore` | AAPL | `90/100` | ✅ Correcto |
+| `terminalGrowthRate` | MSFT | `0.030` (3% sectorial Technology — parámetro del modelo, no dato de empresa) | ✅ Esperado |
+| `wacc` | AAPL | `0.0924` (sin variación tras fix creditSpread — debtWeight ~2-3% de market cap) | ✅ Matemáticamente correcto |
+
+**Problema identificado fuera de scope:** TSM reporta financieros en TWD. El engine no tiene conversión de moneda → `intrinsicValuePerShare` aparece en TWD produciendo valores irreales ($30,662). Pendiente como issue separado.
+
+**Tests:** todos los módulos verdes al cierre de la rama.

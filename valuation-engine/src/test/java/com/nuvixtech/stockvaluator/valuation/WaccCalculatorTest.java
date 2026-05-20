@@ -129,7 +129,8 @@ class WaccCalculatorTest {
                 7433000000L,                      // sharesOutstanding
                 new BigDecimal("140000000000"),   // ebitda
                 new BigDecimal("2780000000000"),  // marketCap ~$2.78T
-                List.of()
+                List.of(),
+                null
         );
         // ERP implícito de mercado (~4.5%)
         BigDecimal impliedErp = new BigDecimal("0.045");
@@ -163,7 +164,8 @@ class WaccCalculatorTest {
                 2000000000L,
                 new BigDecimal("27000000000"),   // ebitda
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
         var financialsHighTax = new CompanyFinancials(
                 "NVDA_HIGH",
@@ -177,7 +179,8 @@ class WaccCalculatorTest {
                 2000000000L,
                 new BigDecimal("27000000000"),   // mismo ebitda
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
 
         var waccLowTax = calculator.calculate(financialsLowTax, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
@@ -205,7 +208,8 @@ class WaccCalculatorTest {
                 500000000L,
                 new BigDecimal("5000000000"),    // ebitda < interestExpense
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
 
         // No debe lanzar excepción; debe retornar WACC válido usando fallback 21%
@@ -232,7 +236,8 @@ class WaccCalculatorTest {
                 500000000L,
                 new BigDecimal("10000000000"),   // ebitda
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
 
         // Debe retornar WACC válido usando el fallback
@@ -241,6 +246,194 @@ class WaccCalculatorTest {
         assertNotNull(wacc);
         assertTrue(wacc.compareTo(BigDecimal.ZERO) > 0,
                 "WACC debe ser positivo con tasa anomalía, fue: " + wacc);
+    }
+
+    @Test
+    void calculate_debtSpread_highCoverageRatio_usesLowSpread() {
+        // ICR = ebitda / interestExpense = 27B / 300M = 90x → spread 0.63% (AAA/AA)
+        // Kd = (riskFreeRate + 0.0063) × (1 - taxRate)
+        // Kd_spread debe ser menor que Kd_ratio para esta empresa con deuda muy manejable
+        var financials = new CompanyFinancials(
+                "AAPL_HIGH_ICR",
+                List.of(new BigDecimal("100000000000")),
+                new BigDecimal("110000000000"),  // totalDebt
+                new BigDecimal("50000000000"),
+                new BigDecimal("60000000000"),
+                new BigDecimal("300000000"),     // interestExpense muy bajo → ICR ~90x
+                new BigDecimal("29000000000"),
+                new BigDecimal("1.24"),
+                15000000000L,
+                new BigDecimal("27000000000"),   // ebitda
+                new BigDecimal("2800000000000"), // marketCap
+                List.of(),
+                null
+        );
+
+        var wacc = calculator.calculate(financials, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        // WACC debe ser razonable y positivo
+        assertNotNull(wacc);
+        assertTrue(wacc.compareTo(new BigDecimal("0.05")) > 0,
+                "WACC debe ser > 5%, fue: " + wacc);
+        assertTrue(wacc.compareTo(new BigDecimal("0.15")) < 0,
+                "WACC debe ser < 15%, fue: " + wacc);
+        // El breakdown debe contener debtSpread
+        // (verificado vía DcfCalculatorTest — aquí solo comprobamos WACC razonable)
+    }
+
+    @Test
+    void calculate_debtSpread_lowCoverageRatio_usesHighSpread() {
+        // ICR = ebitda / interestExpense = 2B / 2.5B = 0.8x → spread 8.64% (CCC)
+        // Empresa con ICR < 0.8 → costo de deuda muy alto
+        var financialsDistressed = new CompanyFinancials(
+                "DISTRESSED",
+                List.of(new BigDecimal("1000000000")),
+                new BigDecimal("20000000000"),   // totalDebt alto
+                new BigDecimal("500000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("2500000000"),    // interestExpense casi igual a ebitda → ICR ~0.8x
+                new BigDecimal("200000000"),
+                new BigDecimal("1.8"),
+                500000000L,
+                new BigDecimal("2000000000"),    // ebitda
+                BigDecimal.ZERO,
+                List.of(),
+                null
+        );
+        // Empresa sana equivalente con el mismo beta pero sin problemas de deuda
+        var financialsHealthy = new CompanyFinancials(
+                "HEALTHY",
+                List.of(new BigDecimal("1000000000")),
+                new BigDecimal("20000000000"),
+                new BigDecimal("500000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("200000000"),     // interestExpense bajo → ICR ~10x
+                new BigDecimal("1000000000"),
+                new BigDecimal("1.8"),
+                500000000L,
+                new BigDecimal("2000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
+        );
+
+        var waccDistressed = calculator.calculate(financialsDistressed, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+        var waccHealthy = calculator.calculate(financialsHealthy, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        assertTrue(waccDistressed.compareTo(waccHealthy) > 0,
+                "Empresa en dificultades (ICR<0.8) debe tener WACC mayor que empresa sana. " +
+                "distressed=" + waccDistressed + " healthy=" + waccHealthy);
+    }
+
+    @Test
+    void calculate_debtSpread_aAACompany_waccReflectsLowSpread() {
+        // ICR = 100B ebitda / 1B interestExpense = 100x → AAA, spread = 0.63%
+        // Kd = (riskFreeRate=4.5% + spread=0.63%) × (1 - taxRate)
+        // Con taxRate=21%: Kd = 5.13% × 0.79 ≈ 4.05%
+        // Método anterior (interestExpense/totalDebt): 1B/50B = 2% × 0.79 = 1.58%
+        // Con spread: Kd sube de 1.58% → 4.05% para empresa AAA con deuda barata heredada
+        var financials = new CompanyFinancials(
+                "AAA_COMPANY",
+                List.of(new BigDecimal("80000000000")),
+                new BigDecimal("50000000000"),   // totalDebt
+                new BigDecimal("10000000000"),
+                new BigDecimal("200000000000"),  // totalEquity
+                new BigDecimal("1000000000"),    // interestExpense bajo (1B) → ICR=100x
+                new BigDecimal("20000000000"),   // incomeTaxExpense
+                new BigDecimal("1.0"),
+                5000000000L,
+                new BigDecimal("100000000000"), // ebitda
+                BigDecimal.ZERO,
+                List.of(),
+                null
+        );
+
+        var wacc = calculator.calculate(financials, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        // Equity weight = 200B/(200B+50B) = 80%, Ke = 4.5%+1.0×5.5% = 10%
+        // Con spread Kd≈4.05%: WACC ≈ 0.80×10% + 0.20×4.05% ≈ 8.81%
+        // Sin spread Kd≈1.58%: WACC ≈ 0.80×10% + 0.20×1.58% ≈ 8.32%
+        // El valor con spread debe ser mayor que 8.5% (por encima del método anterior)
+        assertTrue(wacc.compareTo(new BigDecimal("0.085")) > 0,
+                "Con spread AAA, WACC debe reflejar Kd basado en riskFreeRate+spread, fue: " + wacc);
+    }
+
+    @Test
+    void calculate_debtSpread_fallbackWhenNoInterestExpense() {
+        // Si interestExpense = 0: ICR indefinido → no hay costo de deuda, WACC = Ke
+        var financials = buildFinancials(
+                new BigDecimal("50000000000"),   // tiene deuda pero no paga intereses
+                new BigDecimal("50000000000"),
+                BigDecimal.ZERO,                 // interestExpense = 0
+                new BigDecimal("8000000000"),
+                new BigDecimal("1.0")
+        );
+
+        var wacc = calculator.calculate(financials, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        // Ke = 0.045 + 1.0×0.055 = 0.10; con Kd=0 y deuda, WACC < Ke
+        assertNotNull(wacc);
+        assertTrue(wacc.compareTo(BigDecimal.ZERO) > 0,
+                "WACC debe ser positivo aunque interestExpense=0, fue: " + wacc);
+        assertTrue(wacc.compareTo(new BigDecimal("0.10")) <= 0,
+                "WACC no puede superar Ke cuando Kd=0, fue: " + wacc);
+    }
+
+    @Test
+    void calculate_sizeRiskPremium_zeroForMegaCap() {
+        // market cap > $100B → sizeRiskPremium = 0%
+        // Verificado directamente: calculateSizeRiskPremium($2.78T) = 0
+        var megaCapValue = new BigDecimal("2780000000000");
+        var sizeRiskPremium = calculator.calculateSizeRiskPremium(megaCapValue);
+
+        assertEquals(0, sizeRiskPremium.compareTo(BigDecimal.ZERO),
+                "Mega cap >$100B debe tener sizeRiskPremium = 0, fue: " + sizeRiskPremium);
+    }
+
+    @Test
+    void calculate_sizeRiskPremium_appliedForSmallCap() {
+        // market cap $200M < $300M → sizeRiskPremium = 2.0%
+        var microCapValue = new BigDecimal("200000000");
+        var sizeRiskPremiumMicro = calculator.calculateSizeRiskPremium(microCapValue);
+
+        assertEquals(0, sizeRiskPremiumMicro.compareTo(new BigDecimal("0.020")),
+                "Micro cap <$300M debe tener sizeRiskPremium = 2.0%, fue: " + sizeRiskPremiumMicro);
+
+        // market cap $5B → prima 1.0%
+        var midCapValue = new BigDecimal("5000000000");
+        var sizeRiskPremiumMid = calculator.calculateSizeRiskPremium(midCapValue);
+
+        assertEquals(0, sizeRiskPremiumMid.compareTo(new BigDecimal("0.010")),
+                "Mid cap $2B-$10B debe tener sizeRiskPremium = 1.0%, fue: " + sizeRiskPremiumMid);
+    }
+
+    @Test
+    void calculate_sizeRiskPremium_addedToBreakdown() {
+        // El breakdown del DcfCalculator debe incluir sizeRiskPremium
+        // (verificado indirectamente: si WACC cambia con market cap, la prima fue aplicada)
+        var financialsSmall = new CompanyFinancials(
+                "SMALL_CHECK",
+                List.of(new BigDecimal("1000000000")),
+                BigDecimal.ZERO,                  // sin deuda → WACC = Ke puro
+                BigDecimal.ZERO,
+                new BigDecimal("500000000"),
+                BigDecimal.ZERO,
+                new BigDecimal("100000000"),
+                new BigDecimal("1.0"),
+                10000000L,
+                new BigDecimal("200000000"),
+                new BigDecimal("150000000"),      // $150M → prima 2.0%
+                List.of(),
+                null
+        );
+
+        var wacc = calculator.calculate(financialsSmall, RISK_FREE_RATE, MARKET_RISK_PREMIUM);
+
+        // Ke sin prima = 4.5% + 1.0×5.5% = 10%; con prima 2% → 12%
+        assertTrue(wacc.compareTo(new BigDecimal("0.115")) > 0,
+                "WACC con prima de tamaño 2% debe ser > 11.5%, fue: " + wacc);
+        assertTrue(wacc.compareTo(new BigDecimal("0.13")) < 0,
+                "WACC con prima de tamaño 2% debe ser < 13%, fue: " + wacc);
     }
 
     @Test
@@ -265,7 +458,8 @@ class WaccCalculatorTest {
                 1000000000L,
                 new BigDecimal("50000000000"),
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
     }
 }

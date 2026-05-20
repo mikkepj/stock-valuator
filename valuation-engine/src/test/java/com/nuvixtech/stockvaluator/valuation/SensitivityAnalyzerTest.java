@@ -41,7 +41,8 @@ class SensitivityAnalyzerTest {
                 5000000000L,
                 new BigDecimal("110000000000"),
                 BigDecimal.ZERO,
-                List.of()
+                List.of(),
+                null
         );
 
         baseParams = new DcfParameters(

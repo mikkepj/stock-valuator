@@ -67,6 +67,13 @@ public class ValuationResultEntity {
     @Column(name = "scenarios", columnDefinition = "jsonb")
     private List<Map<String, Object>> scenarios;
 
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "monte_carlo", columnDefinition = "jsonb")
+    private Map<String, Object> monteCarlo;
+
+    @Column(name = "quality_score")
+    private Integer qualityScore;
+
     @PrePersist
     void prePersist() {
         if (calculatedAt == null) {
@@ -124,4 +131,10 @@ public class ValuationResultEntity {
 
     public List<Map<String, Object>> getScenarios() { return scenarios; }
     public void setScenarios(List<Map<String, Object>> scenarios) { this.scenarios = scenarios; }
+
+    public Map<String, Object> getMonteCarlo() { return monteCarlo; }
+    public void setMonteCarlo(Map<String, Object> monteCarlo) { this.monteCarlo = monteCarlo; }
+
+    public Integer getQualityScore() { return qualityScore; }
+    public void setQualityScore(Integer qualityScore) { this.qualityScore = qualityScore; }
 }

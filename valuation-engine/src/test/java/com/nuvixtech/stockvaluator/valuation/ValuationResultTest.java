@@ -86,7 +86,9 @@ class ValuationResultTest {
                 new BigDecimal("49000000000"),
                 List.of(new ProjectedFcf(1, new BigDecimal("100000000000"), new BigDecimal("0.05"))),
                 Collections.emptyMap(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                null,  // monteCarloResult
+                0      // qualityScore
         );
     }
 }

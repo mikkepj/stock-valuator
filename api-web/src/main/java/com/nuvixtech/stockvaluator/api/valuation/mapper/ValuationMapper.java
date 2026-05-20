@@ -6,6 +6,7 @@ import com.nuvixtech.stockvaluator.api.valuation.dto.WatchlistItemResponse;
 import com.nuvixtech.stockvaluator.api.valuation.entity.ValuationResultEntity;
 import com.nuvixtech.stockvaluator.ingestion.entity.Company;
 import com.nuvixtech.stockvaluator.ingestion.entity.MarketData;
+import com.nuvixtech.stockvaluator.valuation.MonteCarloResult;
 import com.nuvixtech.stockvaluator.valuation.ScenarioResult;
 import com.nuvixtech.stockvaluator.valuation.ValuationResult;
 import org.springframework.stereotype.Component;
@@ -39,6 +40,8 @@ public class ValuationMapper {
         entity.setSensitivityMatrix(result.sensitivityMatrix());
         entity.setBreakdown(result.breakdown());
         entity.setScenarios(scenariosToMaps(scenarios));
+        entity.setMonteCarlo(monteCarloToMap(result.monteCarloResult()));
+        entity.setQualityScore(result.qualityScore());
         return entity;
     }
 
@@ -62,6 +65,8 @@ public class ValuationMapper {
                 mapsToScenarioDtos(entity.getScenarios()),
                 entity.getSensitivityMatrix(),
                 entity.getBreakdown(),
+                entity.getMonteCarlo(),
+                entity.getQualityScore(),
                 entity.getCalculatedAt()
         );
     }
@@ -106,6 +111,18 @@ public class ValuationMapper {
                 toBigDecimal(m.get("terminalGrowthRate")),
                 toBigDecimal(m.get("wacc"))
         )).toList();
+    }
+
+    private Map<String, Object> monteCarloToMap(MonteCarloResult mc) {
+        if (mc == null) return null;
+        Map<String, Object> m = new LinkedHashMap<>();
+        m.put("p10", mc.p10());
+        m.put("p25", mc.p25());
+        m.put("p50", mc.p50());
+        m.put("p75", mc.p75());
+        m.put("p90", mc.p90());
+        m.put("simulationCount", mc.simulationCount());
+        return m;
     }
 
     private BigDecimal toBigDecimal(Object value) {
