@@ -66,7 +66,14 @@
       "Bash(mkdir -p \"C:/workspaces/intellij/stock-valuator/.claude/commands\")",
       "Bash(mkdir -p \"C:/workspaces/intellij/stock-valuator/.claude/agents\")",
       "Bash(Test-Path *)",
-      "PowerShell(psql *)"
+      "PowerShell(psql *)",
+      "Bash(Get-ChildItem -Path \"C:\\\\workspaces\\\\intellij\\\\stock-valuator\" -Directory)",
+      "Bash(Select-Object Name)",
+      "Skill(update-config)",
+      "Bash(Get-ChildItem -Recurse -Filter \"*.java\" \"C:\\\\workspaces\\\\intellij\\\\stock-valuator\\\\data-ingestion\\\\src\")",
+      "Bash(Select-Object -ExpandProperty FullName)",
+      "Bash(Sort-Object)",
+      "Bash(python3 -c \"import json,sys; d=json.load\\(sys.stdin\\); print\\('ticker:', d.get\\('ticker'\\)\\); print\\('IV:', d.get\\('intrinsicValuePerShare'\\)\\); print\\('taxExp en breakdown:', d.get\\('breakdown', {}\\)\\)\")"
     ]
   },
   "hooks": {

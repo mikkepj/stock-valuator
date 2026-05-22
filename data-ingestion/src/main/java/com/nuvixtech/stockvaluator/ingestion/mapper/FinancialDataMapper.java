@@ -30,18 +30,19 @@ public class FinancialDataMapper {
 
     /**
      * Maps FMP Income Statement → FinancialStatement entity (type INCOME).
+     * {@code fxRateToUsd}: multiply monetary fields by this rate to convert to USD (1.0 for USD companies).
      */
-    public FinancialStatement toIncomeEntity(FmpIncomeStatement dto, Company company) {
+    public FinancialStatement toIncomeEntity(FmpIncomeStatement dto, Company company, BigDecimal fxRateToUsd) {
         int year = extractYear(dto.calendarYear(), dto.date());
         var entity = new FinancialStatement(company, year, StatementType.INCOME);
 
-        entity.setRevenue(BigDecimal.valueOf(dto.revenue()));
-        entity.setOperatingIncome(BigDecimal.valueOf(dto.operatingIncome()));
-        entity.setNetIncome(BigDecimal.valueOf(dto.netIncome()));
-        entity.setEbitda(BigDecimal.valueOf(dto.ebitda()));
-        entity.setInterestExpense(BigDecimal.valueOf(Math.abs(dto.interestExpense())));
-        entity.setIncomeTaxExpense(BigDecimal.valueOf(Math.abs(dto.incomeTaxExpense())));
-        entity.setSharesOutstanding(dto.sharesOutstanding());
+        entity.setRevenue(convert(dto.revenue(), fxRateToUsd));
+        entity.setOperatingIncome(convert(dto.operatingIncome(), fxRateToUsd));
+        entity.setNetIncome(convert(dto.netIncome(), fxRateToUsd));
+        entity.setEbitda(convert(dto.ebitda(), fxRateToUsd));
+        entity.setInterestExpense(convert(Math.abs(dto.interestExpense()), fxRateToUsd));
+        entity.setIncomeTaxExpense(convert(Math.abs(dto.incomeTaxExpense()), fxRateToUsd));
+        entity.setSharesOutstanding(dto.sharesOutstanding()); // unidades, no se convierten
         entity.setRawData(toJson(dto));
 
         return entity;
@@ -49,15 +50,16 @@ public class FinancialDataMapper {
 
     /**
      * Maps FMP Balance Sheet → FinancialStatement entity (type BALANCE).
+     * {@code fxRateToUsd}: multiply monetary fields by this rate to convert to USD (1.0 for USD companies).
      */
-    public FinancialStatement toBalanceEntity(FmpBalanceSheet dto, Company company) {
+    public FinancialStatement toBalanceEntity(FmpBalanceSheet dto, Company company, BigDecimal fxRateToUsd) {
         int year = extractYear(dto.calendarYear(), dto.date());
         var entity = new FinancialStatement(company, year, StatementType.BALANCE);
 
-        entity.setTotalDebt(BigDecimal.valueOf(dto.totalDebt()));
-        entity.setCashAndEquivalents(BigDecimal.valueOf(dto.cashAndCashEquivalents()));
-        entity.setTotalEquity(BigDecimal.valueOf(dto.totalEquity()));
-        entity.setTotalAssets(BigDecimal.valueOf(dto.totalAssets()));
+        entity.setTotalDebt(convert(dto.totalDebt(), fxRateToUsd));
+        entity.setCashAndEquivalents(convert(dto.cashAndCashEquivalents(), fxRateToUsd));
+        entity.setTotalEquity(convert(dto.totalEquity(), fxRateToUsd));
+        entity.setTotalAssets(convert(dto.totalAssets(), fxRateToUsd));
         entity.setRawData(toJson(dto));
 
         return entity;
@@ -66,15 +68,16 @@ public class FinancialDataMapper {
     /**
      * Maps FMP Cash Flow Statement → FinancialStatement entity (type CASHFLOW).
      * CapEx is normalized to positive value.
+     * {@code fxRateToUsd}: multiply monetary fields by this rate to convert to USD (1.0 for USD companies).
      */
-    public FinancialStatement toCashFlowEntity(FmpCashFlowStatement dto, Company company) {
+    public FinancialStatement toCashFlowEntity(FmpCashFlowStatement dto, Company company, BigDecimal fxRateToUsd) {
         int year = extractYear(dto.calendarYear(), dto.date());
         var entity = new FinancialStatement(company, year, StatementType.CASHFLOW);
 
-        entity.setOperatingCashFlow(BigDecimal.valueOf(dto.operatingCashFlow()));
+        entity.setOperatingCashFlow(convert(dto.operatingCashFlow(), fxRateToUsd));
         // FMP returns CapEx as negative → normalize to positive
-        entity.setCapitalExpenditure(BigDecimal.valueOf(Math.abs(dto.capitalExpenditure())));
-        entity.setFreeCashFlow(BigDecimal.valueOf(dto.freeCashFlow()));
+        entity.setCapitalExpenditure(convert(Math.abs(dto.capitalExpenditure()), fxRateToUsd));
+        entity.setFreeCashFlow(convert(dto.freeCashFlow(), fxRateToUsd));
         entity.setRawData(toJson(dto));
 
         return entity;
@@ -103,6 +106,10 @@ public class FinancialDataMapper {
     }
 
     // --- Private helpers ---
+
+    private BigDecimal convert(long rawValue, BigDecimal fxRateToUsd) {
+        return BigDecimal.valueOf(rawValue).multiply(fxRateToUsd, java.math.MathContext.DECIMAL128);
+    }
 
     private int extractYear(String calendarYear, String date) {
         if (calendarYear != null && !calendarYear.isBlank()) {

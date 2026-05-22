@@ -13,6 +13,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+
 /**
  * Orchestrates the full ingestion flow for a given ticker:
  * 1. Fetch company profile → upsert Company
@@ -27,17 +29,20 @@ public class FinancialDataService {
 
     private final FmpApiClient fmpClient;
     private final FinancialDataMapper mapper;
+    private final CurrencyConversionService currencyConversionService;
     private final CompanyRepository companyRepository;
     private final FinancialStatementRepository statementRepository;
     private final MarketDataRepository marketDataRepository;
 
     public FinancialDataService(FmpApiClient fmpClient,
                                 FinancialDataMapper mapper,
+                                CurrencyConversionService currencyConversionService,
                                 CompanyRepository companyRepository,
                                 FinancialStatementRepository statementRepository,
                                 MarketDataRepository marketDataRepository) {
         this.fmpClient = fmpClient;
         this.mapper = mapper;
+        this.currencyConversionService = currencyConversionService;
         this.companyRepository = companyRepository;
         this.statementRepository = statementRepository;
         this.marketDataRepository = marketDataRepository;
@@ -63,12 +68,32 @@ public class FinancialDataService {
 
         log.info("Company saved: {} ({})", company.getName(), company.getTicker());
 
-        // 2. Fetch and persist financial statements
-        int incomeCount = ingestIncomeStatements(normalizedTicker, company);
-        int balanceCount = ingestBalanceSheets(normalizedTicker, company);
-        int cashFlowCount = ingestCashFlowStatements(normalizedTicker, company);
+        // 2. Resolve reported currency from income statements (more reliable than profile currency for ADRs).
+        // FMP profile returns the trading currency (USD for NYSE ADRs), but financials may be in the
+        // functional currency (e.g. TWD for TSM). reportedCurrency on the statement is authoritative.
+        var incomeStatements = fmpClient.getIncomeStatements(normalizedTicker, DEFAULT_YEARS);
+        String reportedCurrency = incomeStatements.stream()
+                .map(dto -> dto.reportedCurrency())
+                .filter(c -> c != null && !c.isBlank())
+                .findFirst()
+                .orElseGet(() -> {
+                    String fallback = company.getCurrency();
+                    if (fallback == null || fallback.isBlank()) {
+                        log.warn("No reported currency found for {}, defaulting to USD", normalizedTicker);
+                        return "USD";
+                    }
+                    return fallback;
+                });
 
-        // 3. Fetch and persist market data
+        BigDecimal fxRate = currencyConversionService.getExchangeRateToUsd(reportedCurrency);
+        log.info("FX rate for {} (reportedCurrency={}): {}", normalizedTicker, reportedCurrency, fxRate);
+
+        // 3. Persist financial statements converted to USD
+        int incomeCount = ingestIncomeStatements(incomeStatements, company, fxRate);
+        int balanceCount = ingestBalanceSheets(normalizedTicker, company, fxRate);
+        int cashFlowCount = ingestCashFlowStatements(normalizedTicker, company, fxRate);
+
+        // 4. Fetch and persist market data (FMP returns marketCap in USD for ADRs — no conversion needed)
         var marketData = mapper.toMarketDataEntity(profile, company);
         marketDataRepository.save(marketData);
         log.info("Market data saved: price={}, beta={}", marketData.getPrice(), marketData.getBeta());
@@ -88,23 +113,24 @@ public class FinancialDataService {
 
     // --- Private helpers ---
 
-    private int ingestIncomeStatements(String ticker, Company company) {
-        var statements = fmpClient.getIncomeStatements(ticker, DEFAULT_YEARS);
+    private int ingestIncomeStatements(
+            java.util.List<com.nuvixtech.stockvaluator.ingestion.dto.fmp.FmpIncomeStatement> statements,
+            Company company, BigDecimal fxRate) {
         int count = 0;
         for (var dto : statements) {
-            var entity = mapper.toIncomeEntity(dto, company);
+            var entity = mapper.toIncomeEntity(dto, company, fxRate);
             upsertStatement(entity, company.getId());
             count++;
         }
-        log.debug("Persisted {} income statements for {}", count, ticker);
+        log.debug("Persisted {} income statements for {}", count, company.getTicker());
         return count;
     }
 
-    private int ingestBalanceSheets(String ticker, Company company) {
+    private int ingestBalanceSheets(String ticker, Company company, BigDecimal fxRate) {
         var sheets = fmpClient.getBalanceSheets(ticker, DEFAULT_YEARS);
         int count = 0;
         for (var dto : sheets) {
-            var entity = mapper.toBalanceEntity(dto, company);
+            var entity = mapper.toBalanceEntity(dto, company, fxRate);
             upsertStatement(entity, company.getId());
             count++;
         }
@@ -112,11 +138,11 @@ public class FinancialDataService {
         return count;
     }
 
-    private int ingestCashFlowStatements(String ticker, Company company) {
+    private int ingestCashFlowStatements(String ticker, Company company, BigDecimal fxRate) {
         var statements = fmpClient.getCashFlowStatements(ticker, DEFAULT_YEARS);
         int count = 0;
         for (var dto : statements) {
-            var entity = mapper.toCashFlowEntity(dto, company);
+            var entity = mapper.toCashFlowEntity(dto, company, fxRate);
             upsertStatement(entity, company.getId());
             count++;
         }

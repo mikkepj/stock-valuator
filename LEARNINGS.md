@@ -77,11 +77,45 @@ Produce distribuciones estadísticamente razonables con mucho menor costo comput
 ### BigDecimal.pow() con exponentes fraccionales
 Para potencias fraccionales (ej. CAGR = `(last/first)^(1/n)`) se debe hacer cast a `double`: `Math.pow(ratio.doubleValue(), 1.0/periods)`. La pérdida de precisión en esa operación específica es aceptable y es el patrón usado en todo el engine.
 
+### TSM y acciones ADR: conversión de moneda en la ingesta
+**Síntoma original:** `intrinsicValuePerShare` para TSM resultó ~30.662 USD cuando el precio de mercado era ~392 USD (error de ~7.700%).
+**Causa raíz:** FMP devuelve estados financieros en TWD (moneda funcional), pero el engine asume USD. Adicionalmente, FMP devuelve `currency="USD"` en el `/profile` para ADRs (moneda de cotización NYSE) — esto es **incorrecto para usar como moneda de conversión**. La fuente correcta es `reportedCurrency` dentro del income statement.
+**Solución implementada (`feature/currency-conversion`):**
+1. `FmpIncomeStatement` añade campo `reportedCurrency` (campo 12).
+2. `FinancialDataService.ingest()` lee `reportedCurrency` del primer income statement en vez de `company.getCurrency()`.
+3. `CurrencyConversionService` obtiene la tasa de `ExchangeRateApiClient` (`open.er-api.com`, gratuito).
+4. `FinancialDataMapper` convierte todos los campos monetarios multiplicando por `fxRateToUsd` antes de guardar en BD.
+**Campos NO convertidos:** `sharesOutstanding` (unidades), `beta` (ratio), `marketCap` (FMP ya lo reporta en USD para ADRs).
+**Por qué no FMP para FX:** FMP requiere suscripción premium para cotizaciones forex (HTTP 402). Se usa `open.er-api.com` — API pública gratuita, sin API key, endpoint: `GET /v6/latest/{currency}`.
+**Resultado post-fix:** TSM IV = $465.46 vs precio $407.15 → `FAIR_VALUE` (+14.3%). Coherente con el mercado.
+**Lección clave:** `currency` del `/profile` de FMP = moneda de cotización (USD para ADRs en NYSE). `reportedCurrency` del income statement = moneda funcional real. Siempre usar `reportedCurrency`.
+
 ### ScenarioAnalyzer: Optimista puede dar IV menor que Base
 Observado en AAPL: el escenario Optimista (CAGR × 1.30) puede producir un IV menor que el Base cuando el engine usa el path `projectWithRoic` internamente. El escalado de FCFs para escenarios opera sobre `historicalFcf`, pero el engine puede tomar un camino distinto con los datos escalados. Estado: conocido, no bloqueante.
 
 ### SectorDefaults: Technology usa MRP = 4.5%, no 5.5%
 Los defaults globales (`application.yml`) usan `marketRiskPremium = 0.045`. Los defaults sectoriales de `SectorDefaults` también usan 4.5% para la mayoría de sectores (Damodaran 2024). El único sector con 5.0% es Financials. No confundir con el 5.5% que aparecía en versiones anteriores del CLAUDE.md.
+
+---
+
+## Tooling y flujo de trabajo Claude Code
+
+### Migración de `.claude/commands/` a `.claude/skills/`
+**Contexto:** Claude Code introdujo el sistema de skills como reemplazo del sistema de commands.
+**Estructura nueva:**
+```
+.claude/skills/<nombre>/SKILL.md
+```
+**Frontmatter YAML requerido en cada SKILL.md:**
+```yaml
+---
+name: <nombre-del-skill>
+description: <una línea usada para decidir relevancia en el autocompletado>
+argument-hint: "[argumento opcional visible en el prompt]"
+---
+```
+**Diferencia clave con commands:** El sistema de skills carga el `SKILL.md` como contexto del skill antes de invocarlo. El campo `description` es lo que aparece en el listado de skills disponibles y lo que el modelo usa para decidir cuándo invocar el skill automáticamente.
+**Skills migrados en este proyecto:** `fix`, `new-feature`, `review` — los tres preservan el contenido original de sus respectivos `commands/*.md`.
 
 ---
 

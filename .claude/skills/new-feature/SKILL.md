@@ -1,10 +1,45 @@
+---
+name: new-feature
+description: Workflow TDD obligatorio para nueva feature en stock-valuator. Incluye consulta a context7 antes de implementar, decisión de módulo, test en rojo, implementación mínima y validación manual en Postman antes de commit.
+argument-hint: "[nombre o descripción de la feature]"
+---
+
 # Workflow: Nueva Feature (TDD obligatorio)
 
 Stack: Java 21 · Spring Boot 3.3 · Maven multi-módulo
 
 ---
 
-## PASO 0 — Context7 ANTES de escribir código
+## PASO 0 — Crear plan de la feature
+
+Antes de cualquier otra cosa, crear el archivo:
+`docs/plans/plan-<nombre-feature>.md` con esta estructura:
+
+### Objetivo
+[Qué resuelve esta feature y por qué]
+
+### Módulo destino
+[valuation-engine / data-ingestion / api-web — justificación]
+
+### Archivos a crear o modificar
+- [ ] archivo1.java — qué cambia
+- [ ] archivo2.java — qué cambia
+
+### Orden de implementación
+1. ...
+2. ...
+
+### Criterios de aceptación (como tests)
+- Given / When / Then por cada caso
+
+### Riesgos identificados
+- ...
+
+**Esperar aprobación explícita antes de continuar al PASO 0.**
+
+---
+
+## PASO 1 — Context7 ANTES de escribir código
 
 **Obligatorio.** Antes de usar cualquier librería o API del framework:
 
@@ -19,7 +54,7 @@ Aplica especialmente a: Spring Boot 3.x, Hibernate 6.x / JPA, Resilience4j 2.x, 
 
 ---
 
-## PASO 1 — Decidir en qué módulo va el código
+## PASO 2 — Decidir en qué módulo va el código
 
 | Si la lógica es... | Va en |
 |-------------------|-------|
@@ -31,7 +66,7 @@ Regla: `valuation-engine` no puede importar nada de Spring ni de los otros módu
 
 ---
 
-## PASO 2 — Escribir el test (en rojo)
+## PASO 3 — Escribir el test (en rojo)
 
 ### Si el código va en valuation-engine:
 ```java
@@ -58,7 +93,7 @@ mvn test -pl api-web -am -Dtest=NombreControllerTest
 
 ---
 
-## PASO 3 — Implementar el mínimo código
+## PASO 4 — Implementar el mínimo código
 
 ### En valuation-engine
 - Clase normal con constructor explícito (sin `@Component`)
@@ -76,7 +111,7 @@ mvn test -pl api-web -am -Dtest=NombreControllerTest
 
 ---
 
-## PASO 4 — Verificar que el test pasa
+## PASO 5 — Verificar que el test pasa
 
 ```bash
 mvn test -pl valuation-engine    # solo el engine
@@ -87,13 +122,13 @@ No avanzar al siguiente paso si hay tests en rojo.
 
 ---
 
-## PASO 5 — Refactorizar si es necesario
+## PASO 6 — Refactorizar si es necesario
 
 Solo si hay duplicación real o el código es confuso. No añadir abstracciones especulativas.
 
 ---
 
-## PASO 6 — Verificar compilación completa
+## PASO 7 — Verificar compilación completa
 
 ```bash
 mvn compile -pl api-web -am
@@ -101,7 +136,7 @@ mvn compile -pl api-web -am
 
 ---
 
-## PASO 7 — Validación manual (NO hacer commit hasta completar esto)
+## PASO 8 — Validación manual (NO hacer commit hasta completar esto)
 
 Para cambios en la API REST:
 1. Arrancar el servidor: `mvn spring-boot:run -q`
@@ -115,9 +150,11 @@ Para cambios en la API REST:
 
 ## Checklist antes de commit
 
+## Checklist antes de commit
+
 - [ ] `mvn test` → todos verdes
 - [ ] `mvn compile -pl api-web -am` → sin errores
 - [ ] Validación manual en Postman completada
 - [ ] Migración Flyway añadida si hay cambio de schema
 - [ ] `ValuationEngineConfig` actualizado si hay beans nuevos
-- [ ] Plan de mejoras (`plan-*.md`) actualizado con estado de tareas
+- [ ] `docs/plans/plan-<feature>.md` actualizado con tareas completadas
