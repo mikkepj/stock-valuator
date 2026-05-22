@@ -79,7 +79,9 @@ public class ScenarioAnalyzer {
                                            BigDecimal baseCagr) {
         BigDecimal optimistaGrowth = baseCagr.multiply(new BigDecimal("1.30"), MC);
         if (optimistaGrowth.compareTo(MAX_OPTIMISTA_GROWTH) > 0) {
-            optimistaGrowth = MAX_OPTIMISTA_GROWTH;
+            // Si el CAGR base ya supera el cap absoluto, usamos un incremento relativo
+            // para garantizar que Optimista > Base siempre.
+            optimistaGrowth = baseCagr.multiply(new BigDecimal("1.10"), MC);
         }
 
         CompanyFinancials scaledFinancials = scaleProjectionSource(financials, baseCagr, optimistaGrowth);

@@ -46,6 +46,7 @@ class ValuationServiceTest {
     @Mock private DcfCalculator dcfCalculator;
     @Mock private SensitivityAnalyzer sensitivityAnalyzer;
     @Mock private ScenarioAnalyzer scenarioAnalyzer;
+    @Mock private com.nuvixtech.stockvaluator.valuation.MonteCarloAnalyzer monteCarloAnalyzer;
     @Mock private ValuationMapper mapper;
 
     private ValuationService service;
@@ -62,6 +63,7 @@ class ValuationServiceTest {
                 dcfCalculator,
                 sensitivityAnalyzer,
                 scenarioAnalyzer,
+                monteCarloAnalyzer,
                 mapper,
                 new BigDecimal("0.045"),
                 new BigDecimal("0.045"),
@@ -199,8 +201,9 @@ class ValuationServiceTest {
                 new BigDecimal("12.04"), "FAIR_VALUE",
                 new BigDecimal("0.089"), new BigDecimal("0.025"), 10,
                 new BigDecimal("1000000000000"), new BigDecimal("48000000000"),
-                null,
+                new BigDecimal("1.24"),
                 Collections.emptyList(), Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), 0,
                 LocalDateTime.now()
         );
     }
@@ -241,7 +244,9 @@ class ValuationServiceTest {
                 new BigDecimal("48000000000"),
                 Collections.emptyList(),
                 Collections.emptyMap(),
-                Collections.emptyMap()
+                Collections.emptyMap(),
+                null,
+                0
         );
     }
 }

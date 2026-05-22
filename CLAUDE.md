@@ -2,6 +2,14 @@
 
 ---
 
+## WORKFLOW OBLIGATORIO
+Para cualquier feature o fix no trivial:
+- Usar Shift+Tab (plan mode) antes de ejecutar
+- Crear plan file en docs/plans/ antes de escribir código
+- No ejecutar sin aprobación explícita del plan
+
+---
+
 ## ARQUITECTURA
 
 Maven multi-módulo con 3 módulos y dependencia unidireccional estricta:

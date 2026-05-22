@@ -1,3 +1,9 @@
+---
+name: review
+description: Checklist de code review específico para stock-valuator. Cubre anti-patrones del engine (BigDecimal, sin Spring, records inmutables), correctitud financiera (FCF, WACC, creditSpread), reglas de api-web y estándares de tests.
+argument-hint: "[rama o PR a revisar]"
+---
+
 # Checklist de Code Review
 
 Anti-patrones específicos de este proyecto.

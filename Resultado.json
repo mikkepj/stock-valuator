@@ -1,87 +1,104 @@
 {
-  "ticker": "NVDA",
-  "companyName": "NVIDIA Corporation",
+  "ticker": "TSM",
+  "companyName": "Taiwan Semiconductor Manufacturing Company Limited",
   "sector": "Technology",
-  "intrinsicValuePerShare": 34.3500,
-  "marketPrice": 178.1000,
-  "marginOfSafety": -80.7100,
-  "verdict": "OVERVALUED",
-  "wacc": 0.149728,
-  "terminalGrowthRate": 0.025000,
+  "intrinsicValuePerShare": 465.46,
+  "marketPrice": 407.1500,
+  "marginOfSafety": 14.32,
+  "verdict": "FAIR_VALUE",
+  "wacc": 0.1002781284,
+  "terminalGrowthRate": 0.030,
   "projectionYears": 10,
-  "terminalValue": 300835737481.00,
-  "netDebt": 807000000.00,
+  "terminalValue": 1535865773749,
+  "netDebt": -53975040279.30,
+  "betaUsed": 1.2640,
   "scenarios": [
     {
       "scenarioName": "Base",
-      "intrinsicValuePerShare": 34.35,
-      "marginOfSafety": -80.71,
-      "verdict": "OVERVALUED",
-      "initialGrowthRate": 0.0950016378,
-      "terminalGrowthRate": 0.025,
-      "wacc": 0.1497275203
+      "intrinsicValuePerShare": 465.46,
+      "marginOfSafety": 14.32,
+      "verdict": "FAIR_VALUE",
+      "initialGrowthRate": 0.4296653675,
+      "terminalGrowthRate": 0.030,
+      "wacc": 0.1002781284
     },
     {
       "scenarioName": "Optimista",
-      "intrinsicValuePerShare": 37.88,
-      "marginOfSafety": -78.73,
+      "intrinsicValuePerShare": 147.31,
+      "marginOfSafety": -63.82,
       "verdict": "OVERVALUED",
-      "initialGrowthRate": 0.12350212914,
-      "terminalGrowthRate": 0.025,
-      "wacc": 0.1497275203
+      "initialGrowthRate": 0.25,
+      "terminalGrowthRate": 0.030,
+      "wacc": 0.1002781284
     },
     {
       "scenarioName": "Pesimista",
-      "intrinsicValuePerShare": 29.52,
-      "marginOfSafety": -83.43,
+      "intrinsicValuePerShare": 201.85,
+      "marginOfSafety": -50.42,
       "verdict": "OVERVALUED",
-      "initialGrowthRate": 0.07125122835,
-      "terminalGrowthRate": 0.025,
-      "wacc": 0.1547143727
+      "initialGrowthRate": 0.322249025625,
+      "terminalGrowthRate": 0.030,
+      "wacc": 0.1051995128
     }
   ],
   "sensitivityMatrix": {
-    "0.00%": {
-      "0.00%": 34.35,
-      "+1.00%": 35.97,
-      "+2.00%": 37.90,
-      "-1.00%": 32.98,
-      "-2.00%": 31.79
-    },
-    "+0.50%": {
-      "0.00%": 32.91,
-      "+1.00%": 34.36,
-      "+2.00%": 36.07,
-      "-1.00%": 31.66,
-      "-2.00%": 30.59
-    },
-    "+1.00%": {
-      "0.00%": 31.57,
-      "+1.00%": 32.88,
-      "+2.00%": 34.41,
-      "-1.00%": 30.45,
-      "-2.00%": 29.47
+    "-1.00%": {
+      "-2.00%": 441.81,
+      "-1.00%": 490.58,
+      "0.00%": 555.45,
+      "+1.00%": 646.04,
+      "+2.00%": 781.40
     },
     "-0.50%": {
-      "0.00%": 35.92,
-      "+1.00%": 37.74,
-      "+2.00%": 39.91,
-      "-1.00%": 34.39,
-      "-2.00%": 33.08
+      "-2.00%": 410.83,
+      "-1.00%": 452.52,
+      "0.00%": 506.96,
+      "+1.00%": 581.05,
+      "+2.00%": 687.78
     },
-    "-1.00%": {
-      "0.00%": 37.63,
-      "+1.00%": 39.67,
-      "+2.00%": 42.14,
-      "-1.00%": 35.92,
-      "-2.00%": 34.47
+    "0.00%": {
+      "-2.00%": 383.38,
+      "-1.00%": 419.31,
+      "0.00%": 465.46,
+      "+1.00%": 526.89,
+      "+2.00%": 612.75
+    },
+    "+0.50%": {
+      "-2.00%": 358.92,
+      "-1.00%": 390.10,
+      "0.00%": 429.56,
+      "+1.00%": 481.11,
+      "+2.00%": 551.31
+    },
+    "+1.00%": {
+      "-2.00%": 337.01,
+      "-1.00%": 364.23,
+      "0.00%": 398.24,
+      "+1.00%": 441.93,
+      "+2.00%": 500.14
     }
   },
   "breakdown": {
-    "wacc": 0.149728,
-    "netDebt": 807000000.00,
-    "sumPvFcfs": 534909383394,
-    "terminalValue": 300835737481
+    "sumPvFcfs": 824463493715,
+    "terminalValue": 1535865773749,
+    "terminalValueExitMultiple": 901592823842,
+    "netDebt": -53975040279.30,
+    "wacc": 0.100278,
+    "effectiveTaxRate": 0.119763,
+    "creditSpread": 0.006300,
+    "sizeRiskPremium": 0.000000,
+    "roic": 0.663470,
+    "maxSustainableGrowth": 0.352047,
+    "growthExceedsRoic": 0
   },
-  "lastUpdated": "2026-04-07T23:32:40.911753"
+  "monteCarlo": {
+    "p10": 226.06,
+    "p25": 251.29,
+    "p50": 319.76,
+    "p75": 406.22,
+    "p90": 441.67,
+    "simulationCount": 1000
+  },
+  "qualityScore": 100,
+  "lastUpdated": "2026-05-21T22:47:40.0391428"
 }

@@ -1,3 +1,9 @@
+---
+name: fix
+description: Workflow de fix de bug con TDD obligatorio (test-first) para el proyecto stock-valuator. Reproduce el bug con un test que falla, aplica el fix mínimo y valida sin regresiones.
+argument-hint: "[descripción breve del bug]"
+---
+
 # Workflow: Fix de Bug (test-first)
 
 ---

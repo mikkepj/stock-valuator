@@ -116,6 +116,45 @@ class ScenarioAnalyzerTest {
     }
 
     @Test
+    void analyze_highCagrAboveCap_optimistaStillGreaterThanBase() {
+        // CAGR ~43% (caso TSM): el cap absoluto de 25% caía por debajo del Base,
+        // invirtiendo Optimista < Base. Con cap relativo (×1.10) debe mantenerse el orden.
+        CompanyFinancials highGrowthFinancials = new CompanyFinancials(
+                "TSM",
+                List.of(
+                        new BigDecimal("10000000000"),
+                        new BigDecimal("14300000000"),
+                        new BigDecimal("20449000000"),
+                        new BigDecimal("29242000000"),
+                        new BigDecimal("41816000000")
+                ),
+                new BigDecimal("50000000000"),
+                new BigDecimal("80000000000"),
+                new BigDecimal("300000000000"),
+                new BigDecimal("3000000000"),
+                new BigDecimal("20000000000"),
+                new BigDecimal("1.264"),
+                5189000000L,
+                new BigDecimal("150000000000"),
+                new BigDecimal("800000000000"),
+                List.of(),
+                "Technology"
+        );
+
+        var scenarios = analyzer.analyze(highGrowthFinancials, baseParams);
+        var base = scenarios.stream().filter(s -> s.scenarioName().equals("Base")).findFirst().orElseThrow();
+        var optimista = scenarios.stream().filter(s -> s.scenarioName().equals("Optimista")).findFirst().orElseThrow();
+        var pesimista = scenarios.stream().filter(s -> s.scenarioName().equals("Pesimista")).findFirst().orElseThrow();
+
+        assertTrue(optimista.intrinsicValuePerShare().compareTo(base.intrinsicValuePerShare()) > 0,
+                "Optimista debe ser mayor que Base incluso con CAGR alto. Optimista="
+                        + optimista.intrinsicValuePerShare() + " Base=" + base.intrinsicValuePerShare());
+        assertTrue(pesimista.intrinsicValuePerShare().compareTo(base.intrinsicValuePerShare()) < 0,
+                "Pesimista debe ser menor que Base. Pesimista="
+                        + pesimista.intrinsicValuePerShare() + " Base=" + base.intrinsicValuePerShare());
+    }
+
+    @Test
     void analyze_nullFinancials_throwsException() {
         assertThrows(NullPointerException.class, () -> analyzer.analyze(null, baseParams));
     }
