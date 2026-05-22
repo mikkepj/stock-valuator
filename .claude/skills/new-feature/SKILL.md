@@ -35,7 +35,7 @@ Antes de cualquier otra cosa, crear el archivo:
 ### Riesgos identificados
 - ...
 
-**Esperar aprobación explícita antes de continuar al PASO 0.**
+**Esperar aprobación explícita antes de continuar al PASO 1.**
 
 ---
 

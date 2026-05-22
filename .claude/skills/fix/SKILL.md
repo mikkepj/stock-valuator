@@ -8,6 +8,29 @@ argument-hint: "[descripción breve del bug]"
 
 ---
 
+## PASO 0 — Documentar el bug antes de tocarlo
+
+Crear `docs/plans/fix-<nombre>.md` con:
+
+### Síntoma
+[Qué ocurre exactamente, cuándo, con qué datos de ejemplo]
+
+### Causa raíz hipotética
+[Primera hipótesis — se confirma o descarta en PASO 2]
+
+### Opciones de fix
+[Al menos 2 opciones con trade-offs — elegir una antes de implementar]
+
+### Test que reproduce el bug
+[Given / When / Then del test que debe fallar primero]
+
+### Criterio de éxito
+[Qué debe pasar para considerar el bug resuelto]
+
+**Esperar aprobación antes de continuar con el PASO 1.**
+
+---
+
 ## PASO 1 — Reproducir el bug con un test
 
 Antes de tocar el código de producción, escribir un test que falle por la razón correcta.
@@ -85,3 +108,10 @@ Para bugs en el resultado del cálculo DCF:
 | `qualityScore = 0` sin razón | `QualityScoreCalculator` | `historicalFcf` con negativos o menos de 2 puntos |
 | `NoSuchMethodError` en tests | Record con campos nuevos | Buscar todos los `new NombreRecord(` y actualizar args |
 | Monte Carlo `p50` muy distinto al IV base | `MonteCarloAnalyzer` | CAGR histórico negativo → growthRate base = terminalRate |
+
+## Checklist antes de commit
+
+- [ ] Test que reproduce el bug → en verde
+- [ ] `mvn test` → suite completa sin regresiones
+- [ ] Validación en Postman completada (si afecta API)
+- [ ] `docs/plans/fix-<nombre>.md` actualizado con causa raíz y fix aplicado

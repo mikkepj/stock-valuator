@@ -3,6 +3,13 @@ name: review
 description: Checklist de code review específico para stock-valuator. Cubre anti-patrones del engine (BigDecimal, sin Spring, records inmutables), correctitud financiera (FCF, WACC, creditSpread), reglas de api-web y estándares de tests.
 argument-hint: "[rama o PR a revisar]"
 ---
+## Agente encargado
+
+Invocar al agente `java-reviewer` para ejecutar esta revisión.
+El agente tiene contexto especializado del stack de este proyecto
+(Java 21, Spring Boot 3.3, valuation-engine sin Spring, BigDecimal).
+
+---
 
 # Checklist de Code Review
 
