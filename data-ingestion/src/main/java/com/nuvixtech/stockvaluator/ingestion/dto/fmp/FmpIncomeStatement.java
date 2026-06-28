@@ -18,5 +18,6 @@ public record FmpIncomeStatement(
     @JsonProperty("interestExpense") long interestExpense,
     @JsonProperty("incomeTaxExpense") long incomeTaxExpense,
     @JsonProperty("weightedAverageShsOut") long sharesOutstanding,
-    @JsonProperty("calendarYear") String calendarYear
+    @JsonProperty("calendarYear") String calendarYear,
+    @JsonProperty("reportedCurrency") String reportedCurrency
 ) {}

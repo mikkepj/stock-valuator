@@ -73,6 +73,15 @@ public class FinancialStatement {
     @Column(name = "shares_outstanding")
     private Long sharesOutstanding;
 
+    @Column(name = "operating_lease_obligations")
+    private BigDecimal operatingLeaseObligations;
+
+    @Column(name = "pension_liabilities")
+    private BigDecimal pensionLiabilities;
+
+    @Column(name = "minority_interest")
+    private BigDecimal minorityInterest;
+
     @Column(name = "raw_data", columnDefinition = "jsonb")
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.JSON)
     private String rawData;
@@ -145,6 +154,15 @@ public class FinancialStatement {
 
     public Long getSharesOutstanding() { return sharesOutstanding; }
     public void setSharesOutstanding(Long sharesOutstanding) { this.sharesOutstanding = sharesOutstanding; }
+
+    public BigDecimal getOperatingLeaseObligations() { return operatingLeaseObligations; }
+    public void setOperatingLeaseObligations(BigDecimal v) { this.operatingLeaseObligations = v; }
+
+    public BigDecimal getPensionLiabilities() { return pensionLiabilities; }
+    public void setPensionLiabilities(BigDecimal v) { this.pensionLiabilities = v; }
+
+    public BigDecimal getMinorityInterest() { return minorityInterest; }
+    public void setMinorityInterest(BigDecimal v) { this.minorityInterest = v; }
 
     public String getRawData() { return rawData; }
     public void setRawData(String rawData) { this.rawData = rawData; }

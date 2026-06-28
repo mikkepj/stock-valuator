@@ -41,7 +41,10 @@ class DcfCalculatorTest {
                 new BigDecimal("29000000000"),   // incomeTaxExpense
                 new BigDecimal("1.24"),          // beta
                 15441926000L,                    // sharesOutstanding
-                new BigDecimal("125000000000")   // ebitda
+                new BigDecimal("125000000000"),  // ebitda
+                BigDecimal.ZERO,                 // marketCap (fallback a totalEquity)
+                List.of(),                       // sin estimaciones de analistas
+                null                             // sector
         );
 
         var params = DcfParameters.defaults(new BigDecimal("178.50"));
@@ -77,7 +80,10 @@ class DcfCalculatorTest {
                 new BigDecimal("5000000000"),
                 new BigDecimal("1.0"),
                 1000000000L,
-                new BigDecimal("15000000000")
+                new BigDecimal("15000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
         );
 
         var params = DcfParameters.defaults(new BigDecimal("100"));
@@ -86,6 +92,83 @@ class DcfCalculatorTest {
         // netDebt = 100B - 60B = 40B
         assertEquals(0, result.netDebt().compareTo(new BigDecimal("40000000000")),
                 "Net debt debe ser 40B, fue: " + result.netDebt());
+    }
+
+    @Test
+    void calculate_netDebt_includesLeasesAndPensions() {
+        // adjustedNetDebt = totalDebt + operatingLeases + pensionLiabilities + minorityInterest - cash
+        // = 100B + 20B + 5B + 3B - 60B = 68B
+        var financials = new CompanyFinancials(
+                "TEST_ADJUSTED",
+                List.of(new BigDecimal("10000000000")),
+                new BigDecimal("100000000000"),  // totalDebt
+                new BigDecimal("60000000000"),   // cash
+                new BigDecimal("50000000000"),
+                new BigDecimal("3000000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("1.0"),
+                1000000000L,
+                new BigDecimal("15000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null,
+                new BigDecimal("20000000000"),   // operatingLeaseObligations
+                new BigDecimal("5000000000"),    // pensionLiabilities
+                new BigDecimal("3000000000"),    // minorityInterest
+                null                             // capitalExpenditure
+        );
+
+        var params = DcfParameters.defaults(new BigDecimal("100"));
+        var result = calculator.calculate(financials, params);
+
+        assertEquals(0, result.netDebt().compareTo(new BigDecimal("68000000000")),
+                "Adjusted net debt debe ser 68B (100+20+5+3-60), fue: " + result.netDebt());
+    }
+
+    @Test
+    void calculate_netDebt_withZeroOptionalFields_matchesBasicFormula() {
+        // Con todos los campos opcionales en cero → netDebt = totalDebt - cash (comportamiento anterior)
+        var financialsBasic = new CompanyFinancials(
+                "TEST_BASIC",
+                List.of(new BigDecimal("10000000000")),
+                new BigDecimal("100000000000"),  // totalDebt
+                new BigDecimal("60000000000"),   // cash
+                new BigDecimal("50000000000"),
+                new BigDecimal("3000000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("1.0"),
+                1000000000L,
+                new BigDecimal("15000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null,
+                BigDecimal.ZERO,   // operatingLeaseObligations = 0
+                BigDecimal.ZERO,   // pensionLiabilities = 0
+                BigDecimal.ZERO,   // minorityInterest = 0
+                null               // capitalExpenditure
+        );
+        var financialsLegacy = new CompanyFinancials(
+                "TEST_LEGACY",
+                List.of(new BigDecimal("10000000000")),
+                new BigDecimal("100000000000"),
+                new BigDecimal("60000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("3000000000"),
+                new BigDecimal("5000000000"),
+                new BigDecimal("1.0"),
+                1000000000L,
+                new BigDecimal("15000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
+        );
+
+        var params = DcfParameters.defaults(new BigDecimal("100"));
+        var resultBasic  = calculator.calculate(financialsBasic, params);
+        var resultLegacy = calculator.calculate(financialsLegacy, params);
+
+        assertEquals(0, resultBasic.netDebt().compareTo(resultLegacy.netDebt()),
+                "Con campos opcionales en cero el netDebt debe ser igual al cálculo básico");
     }
 
     @Test
@@ -117,7 +200,10 @@ class DcfCalculatorTest {
                 new BigDecimal("10000000000"),
                 new BigDecimal("0.8"),
                 100000000L,                      // 100M shares
-                new BigDecimal("130000000000")
+                new BigDecimal("130000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
         );
         // Con FCF de 120B y solo 100M shares: IV estimada muy alta vs precio de $10
         var params = DcfParameters.defaults(new BigDecimal("10"));
@@ -141,7 +227,10 @@ class DcfCalculatorTest {
                 new BigDecimal("100000"),
                 new BigDecimal("1.5"),
                 1000000000L,                         // 1000M shares
-                new BigDecimal("2000000")
+                new BigDecimal("2000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
         );
         // Con FCF de 1M y 1000M shares, IV por acción será fracción de centavo vs $500
         var params = DcfParameters.defaults(new BigDecimal("500"));
@@ -182,6 +271,124 @@ class DcfCalculatorTest {
                 () -> calculator.calculate(financials, null));
     }
 
+    @Test
+    void calculate_lowerBeta_producesLowerWaccAndHigherIV() {
+        // Mismos datos, distinto beta: beta 1.0 debe producir WACC menor e IV mayor que beta 2.0
+        var financialsHighBeta = new CompanyFinancials(
+                "NVDA",
+                List.of(new BigDecimal("40000000000"), new BigDecimal("60000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("15000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("200000000"),
+                new BigDecimal("4000000000"),
+                new BigDecimal("2.0"),   // beta alto
+                24000000000L,
+                new BigDecimal("60000000000"),
+                new BigDecimal("1000000000000"),
+                List.of(),
+                null
+        );
+        var financialsLowBeta = new CompanyFinancials(
+                "NVDA",
+                List.of(new BigDecimal("40000000000"), new BigDecimal("60000000000")),
+                new BigDecimal("10000000000"),
+                new BigDecimal("15000000000"),
+                new BigDecimal("50000000000"),
+                new BigDecimal("200000000"),
+                new BigDecimal("4000000000"),
+                new BigDecimal("1.0"),   // beta bajo (override)
+                24000000000L,
+                new BigDecimal("60000000000"),
+                new BigDecimal("1000000000000"),
+                List.of(),
+                null
+        );
+        var params = DcfParameters.defaults(new BigDecimal("178"));
+
+        var resultHighBeta = calculator.calculate(financialsHighBeta, params);
+        var resultLowBeta = calculator.calculate(financialsLowBeta, params);
+
+        assertTrue(resultLowBeta.wacc().compareTo(resultHighBeta.wacc()) < 0,
+                "Beta menor debe producir WACC menor");
+        assertTrue(resultLowBeta.intrinsicValuePerShare().compareTo(resultHighBeta.intrinsicValuePerShare()) > 0,
+                "Beta menor debe producir IV por acción mayor");
+    }
+
+    // --- Tests para Mejora 6: Validador ROIC vs WACC ---
+
+    @Test
+    void calculate_roicWarning_setWhenGrowthExceedsRoic() {
+        // Empresa con ROIC muy bajo: NOPAT = 3B × 0.75 = 2.25B; investedCapital = 600B + 900B - 5B = 1495B
+        // ROIC = 2.25B / 1495B ≈ 0.15% — prácticamente cero
+        // FCF histórico creciendo 10x → CAGR cappado al 30%; avgProjectedGrowth >> 0.15%
+        // → growthExceedsRoic = true
+        var financials = new CompanyFinancials(
+                "WARN_TEST",
+                List.of(new BigDecimal("5000000000"), new BigDecimal("50000000000")), // CAGR ~900%
+                new BigDecimal("600000000000"),  // totalDebt enorme
+                new BigDecimal("5000000000"),    // cash
+                new BigDecimal("900000000000"),  // totalEquity enorme
+                new BigDecimal("5000000000"),    // interestExpense
+                new BigDecimal("750000000"),     // incomeTaxExpense
+                BigDecimal.ONE,
+                1_000_000_000L,
+                new BigDecimal("3000000000"),    // ebitda bajo
+                new BigDecimal("200000000000"),  // marketCap
+                List.of(),
+                null,
+                null, null, null,
+                null                             // sin capitalExpenditure → usa CAGR histórico
+        );
+        var params = DcfParameters.defaults(new BigDecimal("100"));
+
+        var result = calculator.calculate(financials, params);
+
+        assertNotNull(result.breakdown().get("roic"),
+                "breakdown debe contener 'roic'");
+        assertNotNull(result.breakdown().get("maxSustainableGrowth"),
+                "breakdown debe contener 'maxSustainableGrowth'");
+        assertEquals(BigDecimal.ONE, result.breakdown().get("growthExceedsRoic"),
+                "growthExceedsRoic debe ser 1 (true) cuando la tasa proyectada excede el ROIC");
+    }
+
+    @Test
+    void calculate_roicWarning_notSetWhenGrowthBelowRoic() {
+        // ROIC muy alto: NOPAT = 80B × 0.75 = 60B; investedCapital = 50B + 300B - 200B = 150B
+        // ROIC = 60B / 150B = 40%
+        // maxSustainableGrowth = 40% × (15B/60B) = 40% × 25% = 10%
+        // FCF histórico con crecimiento modesto → proyección << ROIC → sin warning
+        var financials = new CompanyFinancials(
+                "NO_WARN_TEST",
+                List.of(
+                        new BigDecimal("70000000000"),
+                        new BigDecimal("75000000000"),
+                        new BigDecimal("80000000000")   // CAGR ~6.9%
+                ),
+                new BigDecimal("50000000000"),   // totalDebt
+                new BigDecimal("200000000000"),  // cash (alta posición de caja)
+                new BigDecimal("300000000000"),  // totalEquity
+                new BigDecimal("1000000000"),    // interestExpense
+                new BigDecimal("20000000000"),   // incomeTaxExpense (taxRate ~25%)
+                BigDecimal.ONE,
+                10_000_000_000L,
+                new BigDecimal("80000000000"),   // ebitda
+                new BigDecimal("1000000000000"), // marketCap
+                List.of(),
+                null,
+                null, null, null,
+                new BigDecimal("15000000000")    // capitalExpenditure
+        );
+        var params = DcfParameters.defaults(new BigDecimal("150"));
+
+        var result = calculator.calculate(financials, params);
+
+        assertNotNull(result.breakdown().get("roic"),
+                "breakdown debe contener 'roic'");
+        assertEquals(BigDecimal.ZERO, result.breakdown().get("growthExceedsRoic"),
+                "growthExceedsRoic debe ser 0 (false) cuando el crecimiento proyectado está bajo el ROIC");
+    }
+
     // Helper para financials simples
     private CompanyFinancials buildSimpleFinancials(String ticker) {
         return new CompanyFinancials(
@@ -198,7 +405,10 @@ class DcfCalculatorTest {
                 new BigDecimal("8000000000"),
                 new BigDecimal("1.1"),
                 5000000000L,
-                new BigDecimal("80000000000")
+                new BigDecimal("80000000000"),
+                BigDecimal.ZERO,
+                List.of(),
+                null
         );
     }
 }

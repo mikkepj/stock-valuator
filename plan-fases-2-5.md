@@ -71,19 +71,19 @@
 
 ### 3.1 Entidad y Repositorio ValuationResult
 
-- [ ] Crear entidad JPA `ValuationResultEntity` mapeando tabla `valuation_result` existente; campos `sensitivityMatrix` y `breakdown` como `@JdbcTypeCode(JSON)`
-- [ ] Crear `ValuationResultRepository` con método `findFirstByCompanyTickerOrderByCalculatedAtDesc(String ticker)`
+- [x] Crear entidad JPA `ValuationResultEntity` mapeando tabla `valuation_result` existente; campos `sensitivityMatrix` y `breakdown` como `@JdbcTypeCode(JSON)`
+- [x] Crear `ValuationResultRepository` con método `findFirstByCompanyTickerOrderByCalculatedAtDesc(String ticker)`
 
 ### 3.2 Response DTOs y Mapper
 
-- [ ] Crear record `ValuationResponse`: todos los campos de `ValuationResult` + `companyName`, `sector`, `lastUpdated`
-- [ ] Crear record `WatchlistItemResponse`: `ticker`, `companyName`, `currentPrice`, `intrinsicValue`, `marginOfSafety`, `verdict`
-- [ ] Crear `ValuationMapper` (sin librerías externas): `ValuationResult → ValuationResultEntity`, `ValuationResultEntity → ValuationResponse`
+- [x] Crear record `ValuationResponse`: todos los campos de `ValuationResult` + `companyName`, `sector`, `lastUpdated`
+- [x] Crear record `WatchlistItemResponse`: `ticker`, `companyName`, `currentPrice`, `intrinsicValue`, `marginOfSafety`, `verdict`
+- [x] Crear `ValuationMapper` (sin librerías externas): `ValuationResult → ValuationResultEntity`, `ValuationResultEntity → ValuationResponse`
 
 ### 3.3 Servicio de Valuación
 
-- [ ] **TEST** `ValuationServiceTest` con Mockito — cache hit no llama al engine; `forceCalculate` invalida cache; ticker sin datos lanza `TickerNotFoundException`
-- [ ] Implementar `ValuationService`:
+- [x] **TEST** `ValuationServiceTest` con Mockito — cache hit no llama al engine; `forceCalculate` invalida cache; ticker sin datos lanza `TickerNotFoundException`
+- [x] Implementar `ValuationService`:
   - `getValuation(ticker)` con `@Cacheable("valuations")`
   - `forceCalculate(ticker)` con `@CacheEvict` — ingesta si necesario, corre engine, persiste
   - Método privado `buildCompanyFinancials(ticker)` que lee de `FinancialStatementRepository` y `MarketDataRepository`
@@ -91,25 +91,74 @@
 
 ### 3.4 Endpoints de Valuación
 
-- [ ] **TEST** `ValuationControllerTest` con MockMvc — GET 200 con body; POST 200 con cálculo fresco; ticker inexistente → 404
-- [ ] Implementar `ValuationController`:
+- [x] **TEST** `ValuationControllerTest` con MockMvc — GET 200 con body; POST 200 con cálculo fresco; ticker inexistente → 404
+- [x] Implementar `ValuationController`:
   - `GET /api/v1/valuations/{ticker}` → `ValuationResponse` cacheado
   - `POST /api/v1/valuations/{ticker}/calculate` → fuerza recálculo
 
 ### 3.5 Endpoints Watchlist
 
-- [ ] Crear entidad JPA `WatchlistEntry` mapeando tabla `watchlist` existente
-- [ ] Crear `WatchlistRepository` con `findByCompanyTicker(String ticker)`
-- [ ] **TEST** `WatchlistControllerTest` con MockMvc — GET lista, POST agrega, DELETE 404 si no existe
-- [ ] Implementar `WatchlistController`:
+- [x] Crear entidad JPA `WatchlistEntry` mapeando tabla `watchlist` existente
+- [x] Crear `WatchlistRepository` con `findByCompanyTicker(String ticker)`
+- [x] **TEST** `WatchlistControllerTest` con MockMvc — GET lista, POST agrega, DELETE 404 si no existe
+- [x] Implementar `WatchlistController`:
   - `GET /api/v1/watchlist` → `List<WatchlistItemResponse>`
   - `POST /api/v1/watchlist/{ticker}` → agrega y retorna 201
   - `DELETE /api/v1/watchlist/{ticker}` → 204 o 404
 
 ### 3.6 Exception Handling y Caché
 
-- [ ] Implementar `GlobalExceptionHandler` (`@ControllerAdvice`): `TickerNotFoundException → 404`, `IngestionException → 422`, `Exception → 500`; body uniforme `ErrorResponse` record con `timestamp`, `status`, `error`, `path`
-- [ ] Crear `CacheConfig`: cache `valuations` con TTL 24h, `watchlist` con TTL 5min
+- [x] Implementar `GlobalExceptionHandler` (`@ControllerAdvice`): `TickerNotFoundException → 404`, `IngestionException → 422`, `Exception → 500`; body uniforme `ErrorResponse` record con `timestamp`, `status`, `error`, `path`
+- [x] Crear `CacheConfig`: cache `valuations` con TTL 24h, `watchlist` con TTL 5min
+
+---
+
+## Fase 3.6 — Calibración DCF y Escenarios ✅
+
+**Objetivo:** Mejorar la precisión del motor DCF ajustando parámetros de mercado y añadiendo tres escenarios de valuación (Base, Optimista, Pesimista). Soporte para estimaciones de analistas y cap de CAGR histórico.
+
+**Rama:** `feature/dcf-scenarios-calibration`
+
+### 3.6.1 WACC con market cap y ERP implícito
+
+- [x] **TEST** `WaccCalculatorTest` — MSFT con market cap $2.78T produce WACC ~9.2%–9.5%
+- [x] `CompanyFinancials` agrega campo `marketCap` — `equityValue()` retorna market cap si > 0, fallback a totalEquity
+- [x] `WaccCalculator` usa `financials.equityValue()` para ponderar (market cap >> equity en libros para large caps)
+- [x] `marketRiskPremium` cambiado de `0.055` → `0.045` (ERP implícito de mercado) en `application.yml`
+
+### 3.6.2 Tres escenarios de valuación (Base, Optimista, Pesimista)
+
+- [x] **TEST** `ScenarioAnalyzerTest` — 3 escenarios; nombres correctos; Optimista > Base > Pesimista; todos IV > 0; Base == DcfCalculator; null checks
+- [x] Crear record `ScenarioResult`: `scenarioName`, `intrinsicValuePerShare`, `marginOfSafety`, `verdict`, `initialGrowthRate`, `terminalGrowthRate`, `wacc`
+- [x] Crear clase `ScenarioAnalyzer` en `valuation-engine` (sin Spring):
+  - **Base:** DcfCalculator directo
+  - **Optimista:** CAGR × 1.30, cap 25%, WACC base
+  - **Pesimista:** CAGR × 0.75, riskFreeRate + 0.5%
+  - Si hay `analystFcfEstimates`, el CAGR se calcula sobre ellas
+
+### 3.6.3 Integración en ValuationService y API
+
+- [x] Crear `ScenarioResultDto` record en `api-web`
+- [x] Agregar `List<ScenarioResultDto> scenarios` a `ValuationResponse`
+- [x] Actualizar `ValuationService.calculate()` — llama `ScenarioAnalyzer.analyze()`, pasa scenarios al mapper
+- [x] Actualizar `ValuationMapper` — `toEntity(result, scenarios, company)`, deserializa scenarios desde jsonb
+- [x] Migración `V4__add_scenarios_to_valuation_result.sql` — columna `scenarios jsonb`
+- [x] `ValuationEngineConfig` registra bean `ScenarioAnalyzer`
+
+### 3.6.4 Estimaciones de analistas (FCF manual desde Koyfin)
+
+- [x] Entidad `FcfEstimate` + `FcfEstimateRepository`
+- [x] Migración `V5__create_fcf_estimate.sql`
+- [x] `FcfEstimateService.save()` — reemplaza estimaciones existentes, años fiscales desde currentYear+1
+- [x] `POST /api/v1/companies/{ticker}/fcf-estimates` con validación `@NotEmpty` → 204
+- [x] `CompanyFinancials` agrega campo `analystFcfEstimates` (separado de `historicalFcf`)
+- [x] `FreeCashFlowProjector.projectWithEstimates()` — usa estimates para años 1-N sin recalcular CAGR; proyecta años N+1..10 con decay desde tasa implícita del último año estimado
+- [x] `ValuationService.buildCompanyFinancials()` pasa `historicalFcf` e `analystFcfEstimates` como campos separados
+
+### 3.6.5 Cap de CAGR histórico
+
+- [x] **TEST** `FreeCashFlowProjectorTest` — CAGR extremo cappado al 30%; CAGR moderado no afectado
+- [x] `FreeCashFlowProjector.calculateInitialRate()` — cap de 30% para evitar que históricos excepcionales inflen el IV irrealmente
 
 ---
 

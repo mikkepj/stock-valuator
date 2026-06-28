@@ -1,136 +1,254 @@
 # CLAUDE.md — Stock Valuator
 
-Guía de referencia para Claude Code al trabajar en este proyecto.
+---
+
+## WORKFLOW OBLIGATORIO
+Para cualquier feature o fix no trivial:
+- Usar Shift+Tab (plan mode) antes de ejecutar
+- Crear plan file en docs/plans/ antes de escribir código
+- No ejecutar sin aprobación explícita del plan
 
 ---
 
-## Arquitectura del proyecto
+## ARQUITECTURA
 
-Maven multi-módulo con 3 módulos:
+Maven multi-módulo con 3 módulos y dependencia unidireccional estricta:
 
 ```
 stock-valuator/
-├── data-ingestion/     # Cliente FMP API, DTOs, entidades JPA, persistencia
-├── valuation-engine/   # Lógica DCF pura — Java sin Spring, sin frameworks
-└── api-web/            # Spring Boot app: controllers REST, Flyway, Swagger
+├── valuation-engine/   # Java puro — sin Spring, sin JPA, sin reflexión
+├── data-ingestion/     # Spring + JPA + FMP API client + Resilience4j
+└── api-web/            # Spring Boot app: controllers, Flyway, caché, Swagger
 ```
 
 **Paquete raíz:** `com.nuvixtech.stockvaluator`
 
 **Dependencias entre módulos:**
-- `api-web` depende de `data-ingestion` y `valuation-engine`
-- `data-ingestion` depende de `valuation-engine`
-- `valuation-engine` no depende de ningún módulo interno
+- `api-web` → `data-ingestion` + `valuation-engine`
+- `data-ingestion` → `valuation-engine`
+- `valuation-engine` → ninguno (zero dependencias internas)
+
+**Decisiones de diseño ya tomadas:**
+
+| Decisión | Razón |
+|----------|-------|
+| `valuation-engine` sin Spring | Permite tests unitarios puros sin contexto de Spring; el engine es agnóstico de framework |
+| Records para inputs/outputs del engine | `CompanyFinancials`, `DcfParameters`, `ValuationResult`, `ProjectedFcf`, `ScenarioResult`, `MonteCarloResult` son inmutables por diseño |
+| Registrar beans del engine en `ValuationEngineConfig` | Único punto de instanciación; evita `@Component` en el engine |
+| `BigDecimal` exclusivo para cálculos financieros | Precisión decimal sin errores de punto flotante; `MathContext.DECIMAL128` en todas las operaciones |
+| Flyway para migraciones | Control de versión del esquema; nunca usar `ddl-auto: update` en producción |
+| JSONB en PostgreSQL para sensitivity_matrix, breakdown, scenarios, monte_carlo | Flexibilidad de schema para estructuras variables sin normalización excesiva |
+| `equityValue()` en `CompanyFinancials` | Market cap si > 0, totalEquity como fallback; abstrae la fuente del valor |
 
 ---
 
-## Directivas obligatorias
+## STACK TÉCNICO
 
-### 1. TDD siempre
-Escribir el test **antes** de la implementación en todos los casos, salvo que el usuario indique explícitamente lo contrario.
+| Capa | Tecnología | Versión | Quirks conocidos |
+|------|-----------|---------|-----------------|
+| Lenguaje | Java | 21 | Records, sealed classes disponibles |
+| Framework | Spring Boot | 3.3.7 | `RestClient` reemplaza `RestTemplate` |
+| Build | Maven | 3.9+ | Multi-módulo; `mvn -pl <módulo>` para builds parciales |
+| Base de datos | PostgreSQL | 16 | JSONB requiere `@JdbcTypeCode(SqlTypes.JSON)` en Hibernate 6 |
+| Migraciones | Flyway | (BOM de Spring Boot) | Archivo actual más alto: V9 |
+| HTTP Client | RestClient | (Spring 6.1+) | Síncrono; `ParameterizedTypeReference<>` para listas |
+| Resiliencia | Resilience4j | 2.2.0 | BOM declarado en pom raíz |
+| Caché | Caffeine | (BOM de Spring Boot) | valuations: 24h; watchlist: 5min |
+| API docs | springdoc-openapi | 2.6.0 | Swagger UI en `/swagger-ui.html` |
+| Tests | JUnit 5 + Mockito | (Spring Boot BOM) | H2 en modo PostgreSQL para tests de api-web |
+| Frontend | React + Vite + TypeScript + Recharts | — | `cd frontend && npm run dev` |
 
-Orden obligatorio:
-1. Escribir el test (que falla en rojo)
-2. Implementar el mínimo código para que pase
-3. Refactorizar si es necesario
-
-### 2. Usar context7 siempre
-Antes de usar cualquier librería o API del framework (Spring Boot, Resilience4j, Caffeine, Recharts, etc.), consultar context7 para obtener la documentación actualizada. No asumir APIs de memoria.
+**Anti-patrones prohibidos:**
+- `double` o `float` en cualquier cálculo financiero → usar `BigDecimal`
+- `@Component`, `@Service`, `@Autowired` en `valuation-engine`
+- `ddl-auto: update` o `create-drop` fuera de tests
+- `null` en retorno de métodos públicos del engine → usar `Optional` o lanzar excepción
+- Asumir APIs de Spring Boot 3.x, Hibernate 6.x o Vite de memoria → usar context7
 
 ---
 
-## Convenciones de código
+## CONTRATOS DE COMPONENTES
+
+### Entrada al engine: `CompanyFinancials` (record, 17 campos)
+
+```java
+CompanyFinancials(
+    String ticker,
+    List<BigDecimal> historicalFcf,      // ascendente (más antiguo primero), ≥1 elemento
+    BigDecimal totalDebt,
+    BigDecimal cashAndEquivalents,
+    BigDecimal totalEquity,
+    BigDecimal interestExpense,
+    BigDecimal incomeTaxExpense,
+    BigDecimal beta,
+    long sharesOutstanding,              // > 0
+    BigDecimal ebitda,
+    BigDecimal marketCap,               // > 0 → usa para WACC; = 0 → fallback a totalEquity
+    List<BigDecimal> analystFcfEstimates, // puede ser vacío
+    String sector,                       // puede ser null; "Technology", "Energy", etc.
+    BigDecimal operatingLeaseObligations, // opcional (null → ZERO)
+    BigDecimal pensionLiabilities,       // opcional (null → ZERO)
+    BigDecimal minorityInterest,         // opcional (null → ZERO)
+    BigDecimal capitalExpenditure        // opcional (null → fallback a CAGR en proyección)
+)
+```
+
+Constructor de conveniencia de 13 args (sin campos opcionales de deuda ni capex):
+`this(ticker, ..., sector, null, null, null, null)`
+
+### Parámetros del cálculo: `DcfParameters` (record)
+- `riskFreeRate`, `marketRiskPremium`, `terminalGrowthRate`, `projectionYears`, `marketPrice`
+- `SectorDefaults.forSector(sector, price)` provee defaults sectoriales automáticamente
+
+### Salida del engine: `ValuationResult` (record, 15 campos)
+- Incluye: `intrinsicValuePerShare`, `wacc`, `verdict`, `breakdown`, `sensitivityMatrix`, `monteCarloResult` (nullable), `qualityScore`
+- `breakdown` contiene: `sumPvFcfs`, `terminalValue`, `terminalValueExitMultiple`, `netDebt`, `wacc`, `effectiveTaxRate`, `creditSpread`, `sizeRiskPremium`, `roic`, `maxSustainableGrowth`, `growthExceedsRoic`
+
+### Flujo en `ValuationService.calculate()`:
+1. Ingestar si ticker no existe → `FinancialDataService.ingest()`
+2. `buildCompanyFinancials()` → combina CASHFLOW + BALANCE + INCOME de DB
+3. `SectorDefaults.forSector()` si sector disponible; si no, defaults de `application.yml`
+4. `DcfCalculator.calculate()` → `ValuationResult`
+5. `SensitivityAnalyzer.analyze()` → matriz 5×5
+6. `ScenarioAnalyzer.analyze()` → [Base, Optimista, Pesimista]
+7. `MonteCarloAnalyzer.analyze(..., 1000)` → percentiles p10–p90
+8. Reconstruir `ValuationResult` con sensitivityMatrix + monteCarlo
+9. Persistir vía `ValuationMapper.toEntity()` → `ValuationResultEntity`
+
+---
+
+## ESTÁNDARES DE CÓDIGO
 
 ### Java
-- Records para DTOs e inputs/outputs inmutables
-- `BigDecimal` para todos los cálculos financieros (nunca `double` ni `float`)
-- `Optional` en lugar de retornar `null`
+- Records para todos los inputs/outputs del engine (inmutabilidad garantizada)
+- `BigDecimal` + `MathContext.DECIMAL128` en todos los cálculos financieros
+- `Optional` en lugar de retornar `null` en métodos públicos (excepto campos nullable de records donde está documentado)
 - Nombres en inglés para clases, métodos y variables
 - Comentarios en español solo donde la lógica financiera no sea autoevidente
 
 ### Módulo valuation-engine
-- **Zero dependencias de Spring** — ni `@Component`, ni `@Service`, ni inyección de dependencias
-- Constructores explícitos, sin reflexión ni magia de frameworks
+- **Zero dependencias de Spring** — ni `@Component`, `@Service`, ni inyección de dependencias
+- Constructores explícitos (canonical + conveniencia cuando aplica)
 - Todos los métodos públicos deben tener tests unitarios
 
 ### Tests
 - JUnit 5 + Mockito
-- Nombres de método: `methodName_scenario_expectedBehavior()`
-- Un assert principal por test (múltiples asserts solo si verifican el mismo concepto)
-- Datos financieros de AAPL/MSFT/GOOG para casos de integración
+- Nombre: `methodName_scenario_expectedBehavior()`
+- Un assert principal por test
+- Datos reales de AAPL/MSFT/XOM para casos de integración
+- 122 tests verdes al cierre de la rama `feature/dcf-quality-improvements`
+
+### Herramientas obligatorias
+
+**Context7: SIEMPRE usar antes de implementar con cualquier librería del stack.**
+
+Patrón obligatorio:
+1. `resolve-library-id` → obtener ID
+2. `get-docs` → leer documentación actualizada
+3. Implementar
+
+Aplica especialmente a: Spring Boot 3.x, Hibernate 6.x / JPA, Resilience4j 2.x, Vite config, React hooks, Recharts.
 
 ---
 
-## Stack técnico
+## PROBLEMAS CONOCIDOS Y SOLUCIONES
 
-| Capa | Tecnología |
-|------|-----------|
-| Lenguaje | Java 21 |
-| Framework | Spring Boot 3.3 |
-| Build | Maven 3.9+ (multi-módulo) |
-| Base de datos | PostgreSQL 16 |
-| Migraciones | Flyway |
-| HTTP Client | RestClient (Spring) |
-| Resiliencia | Resilience4j |
-| Cache | Caffeine |
-| API docs | springdoc-openapi |
-| Tests | JUnit 5 + Mockito |
-| Frontend | React + Vite + TypeScript + Recharts |
+### Bug creditSpread=0.0864 para AAPL (resuelto en `feature/dcf-quality-improvements`)
+**Síntoma:** `breakdown.creditSpread = 0.086400` (spread CCC) para Apple, que tiene >30x cobertura.
+**Causa:** `WaccCalculator.calculateCreditSpread()` tenía un solo `if (interestExpense <= 0 || ebitda <= 0)` que retornaba spread CCC. Cuando `interestExpense = 0` (sin deuda o no disponible), caía en el peor spread.
+**Fix:** Separar en dos condiciones: `interestExpense <= 0` → AAA (0.0063); `ebitda <= 0` → CCC (0.0864).
+**Efecto en WACC:** Mínimo para AAPL (~0.002%) por el bajo `debtWeight` frente a su market cap de ~3.7T.
+
+### Tests que usan constructor canónico de `CompanyFinancials`
+Al añadir el campo `capitalExpenditure` (17° campo), todos los tests que usaban el constructor de 16 args se rompieron. Solución: agregar `null` como 17° argumento, o usar el constructor de conveniencia de 13 args.
+
+### `ValuationResultTest.buildResult()` roto al añadir campos al record
+Al añadir `monteCarloResult` (14°) y `qualityScore` (15°), el helper `buildResult()` usaba el constructor antiguo. Solución: añadir `null` y `0` como argumentos adicionales.
+
+### Monte Carlo: WACC no se perturba directamente
+`MonteCarloAnalyzer` no recalcula el WACC completo por iteración (demasiado costoso × 1000 simulaciones). En su lugar: ajusta `riskFreeRate` para aproximar el WACC objetivo, y escala el último FCF histórico para reflejar el `growthRate` perturbado.
+
+### H2 para tests de api-web
+H2 no soporta JSONB nativo. Usar `@Column(columnDefinition = "jsonb")` junto con `@JdbcTypeCode(SqlTypes.JSON)` funciona en producción (PostgreSQL), pero en tests H2 se mapea a `TEXT`. Configuración en `application-test.yml`.
+
+### `interestExpense` puede ser 0 en FMP
+La API de FMP a veces devuelve `interestExpense = 0` en el income statement incluso para empresas con deuda. El `ValuationService` hace fallback al cashflow statement, pero puede seguir siendo 0. Esto es correcto: activa el spread AAA en `calculateCreditSpread`, no CCC.
 
 ---
 
-## Comandos útiles
+## WORKFLOW DE DESARROLLO
 
+### Crear nueva feature
 ```bash
-# Compilar todo el proyecto
-mvn compile
+git checkout develop
+git checkout -b feature/<nombre>
+# 1. Escribir test (que falla)
+# 2. Implementar mínimo código
+# 3. Pasar tests
+mvn test -pl valuation-engine        # engine puro
+mvn test                             # suite completa (122+ tests)
+# 4. Commit solo cuando todo verde
+```
 
-# Ejecutar todos los tests
+### Fix de bug
+```bash
+git checkout develop
+git checkout -b fix/<nombre>
+# 1. Escribir test que reproduce el bug (debe fallar)
+# 2. Corregir código
+# 3. Verificar test verde + no regresiones
 mvn test
-
-# Ejecutar tests de un módulo específico
-mvn test -pl valuation-engine
-
-# Build completo con tests
-mvn verify
-
-# Build sin tests
-mvn package -DskipTests
-
-# Arrancar la app (requiere PostgreSQL corriendo)
-cd api-web && mvn spring-boot:run
-
-# Dev frontend
-cd frontend && npm run dev
 ```
+
+### Antes de cada commit
+```bash
+mvn test                             # todos los módulos
+mvn compile -pl api-web -am          # verificar que api-web compila
+```
+
+### Antes de merge a develop
+- Todos los tests verdes (`mvn test`)
+- Validación manual en Postman para cambios que afecten la API
+- Actualizar `plan-*.md` con estado de tareas completadas
+- **No hacer commit/push hasta validar desde Postman o el frontend** (directiva del equipo)
+
+### Migración Flyway
+Archivos en `api-web/src/main/resources/db/migration/`:
+- Último: `V9__add_quality_score_to_valuation_result.sql`
+- Próximo: `V10__...sql`
+- Usar `IF NOT EXISTS` en `ALTER TABLE` para idempotencia
 
 ---
 
-## Variables de entorno requeridas
+## CONTEXTO DE NEGOCIO
 
-```
-FMP_API_KEY=<tu API key de financialmodelingprep.com>
-DB_USERNAME=sv_user        # default si no se especifica
-DB_PASSWORD=sv_pass        # default si no se especifica
-```
+### ¿Qué hace el sistema?
+Calcula el valor intrínseco de acciones usando el modelo DCF (Discounted Cash Flow). Dado un ticker (ej. "AAPL"), ingesta datos financieros de FMP API, ejecuta el motor de valoración y devuelve un precio intrínseco con su margen de seguridad respecto al precio de mercado.
 
----
+### Glosario del dominio DCF
 
-## Parámetros DCF por defecto
+| Término | Significado |
+|---------|------------|
+| **FCF** | Free Cash Flow = Operating Cash Flow − CapEx |
+| **CAGR** | Compound Annual Growth Rate — tasa de crecimiento compuesta histórica |
+| **WACC** | Weighted Average Cost of Capital — promedio ponderado del costo de capital |
+| **Ke** | Costo de equity: `Rf + β × MRP + sizeRiskPremium` (CAPM ajustado) |
+| **Kd** | Costo de deuda: `(Rf + creditSpread) × (1 - taxRate)` |
+| **MRP** | Market Risk Premium — prima de riesgo de mercado |
+| **CAPM** | Capital Asset Pricing Model: `Ke = Rf + β × MRP` |
+| **ROIC** | Return on Invested Capital: `NOPAT / investedCapital` |
+| **NOPAT** | Net Operating Profit After Tax: `EBITDA × (1 - taxRate)` |
+| **ICR** | Interest Coverage Ratio: `EBITDA / interestExpense` |
+| **Net Debt ajustado** | `totalDebt + leases + pensiones + minorityInterest - cash` |
+| **Terminal Value** | Valor de la empresa más allá del horizonte de proyección (Gordon Growth Model) |
+| **Exit Multiple** | TV alternativo: `EBITDA_N × sectorMultiple / (1+WACC)^N` |
+| **Margin of Safety** | `(IV - marketPrice) / marketPrice × 100` |
+| **Verdict** | UNDERVALUED si margen > 15%, OVERVALUED si margen < −15%, FAIR_VALUE en el resto |
+| **Quality Score** | 0–100 pts: FCF Growth + FCF Consistency + ROIC vs WACC + Leverage + Margin Trend |
 
-| Parámetro | Valor | Descripción |
-|-----------|-------|-------------|
-| `riskFreeRate` | 0.045 | Tasa libre de riesgo (US 10Y Treasury) |
-| `marketRiskPremium` | 0.055 | Prima de riesgo de mercado histórica |
-| `terminalGrowthRate` | 0.025 | Tasa de crecimiento terminal (≈ inflación) |
-| `projectionYears` | 10 | Años de proyección de FCF |
-
----
-
-## Reglas financieras clave
-
-- **FCF** = Operating Cash Flow − |CapEx| (CapEx siempre positivo en el dominio)
-- **Net Debt** = Total Debt − Cash & Equivalents
-- **Intrinsic Value/share** = (PV FCFs + PV Terminal Value − Net Debt) / Shares Outstanding
-- **Margin of Safety** = (Intrinsic Value − Market Price) / Market Price × 100
-- **Verdict:** UNDERVALUED si margen > 15%, OVERVALUED si margen < −15%, FAIR_VALUE en el resto
+### Reglas financieras clave
+- CapEx siempre positivo en el dominio (la API FMP puede devolverlo negativo; el mapper lo normaliza)
+- `investedCapital = totalDebt + totalEquity - cash` (puede ser negativo para empresas con caja neta)
+- WACC debe ser siempre > `terminalGrowthRate` (si no, `TerminalValueCalculator` lanza excepción)
+- Spread crediticio: ICR ≥ 8.5x → AAA (0.63%); ICR < 0.8x → CCC (8.64%)
+- Size risk premium: mega cap (>$100B) → 0%; small cap (<$300M) → 2%
