@@ -3,10 +3,10 @@ spring:
     name: stock-valuator
 
   # -----------------------------------------------------------
-  # Database — PostgreSQL local
+  # Database — PostgreSQL (override por env en cloud; default local en dev)
   # -----------------------------------------------------------
   datasource:
-    url: jdbc:postgresql://localhost:5432/stockvaluator
+    url: ${SPRING_DATASOURCE_URL:jdbc:postgresql://localhost:5432/stockvaluator}
     username: ${DB_USERNAME:sv_user}
     password: ${DB_PASSWORD:sv_pass}
     driver-class-name: org.postgresql.Driver

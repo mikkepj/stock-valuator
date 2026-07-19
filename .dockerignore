@@ -1,0 +1,20 @@
+# Build outputs (se regeneran dentro del build stage)
+**/target/
+
+# Git / IDE
+.git/
+.gitignore
+.idea/
+*.iml
+.vscode/
+
+# Docs y artefactos que no afectan al build del BE
+docs/
+*.md
+FCF.csv
+Resultado.json
+errors.log
+
+# Frontend (repo separado; por si acaso quedara algo local)
+frontend/
+node_modules/
